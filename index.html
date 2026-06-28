@@ -1,0 +1,3449 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="World Cup Arena is a responsive schedule and stadium guide with live-style API refreshes and timezone conversion." />
+  <title>World Cup Arena — Schedule & Stadium Guide</title>
+
+  <!-- Tailwind CSS. For a production build, compile Tailwind with your build pipeline and replace this CDN script with the generated CSS file. -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            arena: {
+              dark: '#050816',
+              panel: '#0B1020',
+              cyan: '#23D9FF',
+              green: '#7CFF6B',
+              violet: '#9B5CFF'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f8fb;
+      --bg-soft: #eaf1f7;
+      --panel: rgba(255, 255, 255, 0.78);
+      --panel-strong: rgba(255, 255, 255, 0.94);
+      --panel-muted: rgba(11, 16, 32, 0.06);
+      --text: #09111f;
+      --text-muted: #526174;
+      --border: rgba(14, 24, 45, 0.12);
+      --shadow: 0 24px 80px rgba(6, 12, 27, 0.12);
+      --accent: #0079ff;
+      --accent-2: #00b894;
+      --accent-3: #8f43ff;
+      --danger: #ff4d6d;
+      --warning: #ffb703;
+      --success: #00c853;
+      --glass-blur: blur(22px);
+      --radius-lg: 28px;
+      --radius-md: 20px;
+      --radius-sm: 14px;
+    }
+
+    html.dark {
+      color-scheme: dark;
+      --bg: #050816;
+      --bg-soft: #0b1020;
+      --panel: rgba(11, 16, 32, 0.68);
+      --panel-strong: rgba(10, 16, 32, 0.94);
+      --panel-muted: rgba(255, 255, 255, 0.065);
+      --text: #f5fbff;
+      --text-muted: #98a7be;
+      --border: rgba(255, 255, 255, 0.12);
+      --shadow: 0 28px 90px rgba(0, 0, 0, 0.38);
+      --accent: #23d9ff;
+      --accent-2: #7cff6b;
+      --accent-3: #9b5cff;
+      --danger: #ff5f7e;
+      --warning: #ffd166;
+      --success: #7cff6b;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, "Noto Sans Bengali", "Noto Sans Devanagari", "Noto Nastaliq Urdu", "Noto Sans Arabic", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 26%, transparent), transparent 34rem),
+        radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--accent-3) 28%, transparent), transparent 30rem),
+        radial-gradient(circle at 48% 108%, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 52px 52px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.68), transparent 84%);
+      z-index: -2;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      width: 42rem;
+      height: 42rem;
+      left: 50%;
+      top: 12%;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 68%);
+      filter: blur(32px);
+      opacity: 0.7;
+      z-index: -3;
+      animation: breathe 7s ease-in-out infinite alternate;
+    }
+
+    @keyframes breathe {
+      from { transform: translateX(-50%) scale(0.92); opacity: 0.42; }
+      to { transform: translateX(-50%) scale(1.08); opacity: 0.78; }
+    }
+
+    button, input, select { font: inherit; }
+
+    button { cursor: pointer; }
+
+    button:disabled { cursor: not-allowed; opacity: 0.58; }
+
+    a { color: inherit; }
+
+    .site-shell {
+      width: min(1440px, calc(100% - 32px));
+      margin: 0 auto;
+      padding-bottom: 56px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 14px;
+      z-index: 50;
+      margin: 14px auto 0;
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      background: color-mix(in srgb, var(--panel-strong) 86%, transparent);
+      box-shadow: var(--shadow);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+    }
+
+    .nav {
+      display: grid;
+      grid-template-columns: auto minmax(220px, 1fr) auto;
+      align-items: center;
+      gap: 18px;
+      padding: 12px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-width: max-content;
+      text-decoration: none;
+      padding: 8px 10px;
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent-2) 86%, white), var(--accent), var(--accent-3));
+      box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 45%, transparent);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .brand-logo::before {
+      content: "";
+      position: absolute;
+      inset: 9px;
+      border: 2px solid rgba(255, 255, 255, 0.78);
+      border-radius: 50%;
+    }
+
+    .brand-logo::after {
+      content: "";
+      position: absolute;
+      width: 42px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.78);
+      transform: rotate(-28deg);
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 1.02rem;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .brand-copy span {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .nav-tabs {
+      display: inline-flex;
+      align-items: center;
+      justify-self: center;
+      gap: 8px;
+      padding: 6px;
+      border-radius: 18px;
+      background: var(--panel-muted);
+      border: 1px solid var(--border);
+    }
+
+    .nav-tab {
+      color: var(--text-muted);
+      border: 0;
+      border-radius: 13px;
+      background: transparent;
+      padding: 10px 14px;
+      transition: transform 180ms ease, background 180ms ease, color 180ms ease, box-shadow 180ms ease;
+      font-weight: 800;
+      font-size: 0.88rem;
+    }
+
+    .nav-tab:hover {
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .nav-tab.active {
+      color: #02121d;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 34%, transparent);
+    }
+
+    .top-actions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .timezone-control {
+      display: grid;
+      grid-template-columns: auto minmax(180px, 260px);
+      align-items: center;
+      gap: 8px;
+      padding: 6px 7px 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel-muted);
+    }
+
+    .timezone-control label {
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 900;
+    }
+
+    .select, .input {
+      width: 100%;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      outline: none;
+      background: color-mix(in srgb, var(--panel-strong) 78%, transparent);
+      padding: 11px 12px;
+      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .select:focus, .input:focus {
+      border-color: color-mix(in srgb, var(--accent) 70%, white);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+
+    .select option,
+    .select optgroup {
+      background: #ffffff;
+      color: #09111f;
+    }
+
+    html.dark .select option,
+    html.dark .select optgroup {
+      background: #0b1020;
+      color: #f5fbff;
+    }
+
+    .language-control {
+      grid-template-columns: auto minmax(132px, 170px);
+    }
+
+    html[dir="rtl"] body {
+      text-align: right;
+    }
+
+    html[dir="rtl"] .hero h1,
+    html[dir="rtl"] .hero p,
+    html[dir="rtl"] .brand-copy,
+    html[dir="rtl"] .modal-title {
+      text-align: right;
+    }
+
+    html[dir="rtl"] .control-field label {
+      padding-left: 0;
+      padding-right: 4px;
+    }
+
+    html[lang^="bn"] .eyebrow,
+    html[lang^="hi"] .eyebrow,
+    html[lang^="ur"] .eyebrow,
+    html[lang^="bn"] .stage-chip,
+    html[lang^="hi"] .stage-chip,
+    html[lang^="ur"] .stage-chip,
+    html[lang^="bn"] .status-pill,
+    html[lang^="hi"] .status-pill,
+    html[lang^="ur"] .status-pill,
+    html[lang^="bn"] .pill,
+    html[lang^="hi"] .pill,
+    html[lang^="ur"] .pill {
+      text-transform: none;
+      letter-spacing: 0.02em;
+    }
+
+    .theme-toggle, .icon-button {
+      width: 46px;
+      height: 46px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      color: var(--text);
+      background: var(--panel-muted);
+      transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .theme-toggle:hover, .icon-button:hover {
+      transform: translateY(-2px);
+      border-color: color-mix(in srgb, var(--accent) 56%, var(--border));
+      box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 20%, transparent);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+      gap: 24px;
+      align-items: stretch;
+      padding: 40px 0 24px;
+    }
+
+    .hero-card, .glass-card {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--panel) 72%, transparent));
+      box-shadow: var(--shadow);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      overflow: hidden;
+    }
+
+    .hero-card {
+      padding: clamp(24px, 5vw, 52px);
+      min-height: 400px;
+      display: grid;
+      align-content: space-between;
+    }
+
+    .hero-card::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      background:
+        linear-gradient(115deg, color-mix(in srgb, var(--accent) 36%, transparent), transparent 32%, color-mix(in srgb, var(--accent-2) 22%, transparent) 62%, transparent);
+      opacity: 0.68;
+      pointer-events: none;
+      mask-image: linear-gradient(to bottom right, black, transparent 66%);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      color: var(--accent-2);
+      border: 1px solid color-mix(in srgb, var(--accent-2) 35%, var(--border));
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+      padding: 7px 11px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.11em;
+      font-weight: 900;
+    }
+
+    .pulse-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent-2);
+      box-shadow: 0 0 0 rgba(124,255,107,0.5);
+      animation: pulse 1.6s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(124,255,107,0.46); }
+      70% { box-shadow: 0 0 0 12px rgba(124,255,107,0); }
+      100% { box-shadow: 0 0 0 0 rgba(124,255,107,0); }
+    }
+
+    .hero h1 {
+      position: relative;
+      margin: 22px 0 16px;
+      max-width: 880px;
+      font-size: clamp(2.35rem, 7vw, 5.8rem);
+      line-height: 0.92;
+      letter-spacing: -0.075em;
+      font-weight: 950;
+    }
+
+    .gradient-text {
+      background: linear-gradient(90deg, var(--text), var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero p {
+      position: relative;
+      max-width: 720px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.72;
+      font-size: 1.02rem;
+    }
+
+    .hero-actions {
+      position: relative;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      min-height: 45px;
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      padding: 11px 16px;
+      text-decoration: none;
+      font-weight: 900;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+      color: var(--text);
+      background: var(--panel-muted);
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+      box-shadow: 0 16px 32px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .button.primary {
+      border: 0;
+      color: #031420;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 24%, transparent);
+    }
+
+    .button.ghost {
+      background: color-mix(in srgb, var(--panel-strong) 54%, transparent);
+    }
+
+    .live-panel {
+      padding: 22px;
+      display: grid;
+      gap: 18px;
+      align-content: space-between;
+    }
+
+    .arena-visual {
+      position: relative;
+      min-height: 220px;
+      border-radius: 24px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 28%),
+        linear-gradient(145deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--accent-3) 12%, transparent)),
+        var(--panel-muted);
+      border: 1px solid var(--border);
+    }
+
+    .arena-visual::before {
+      content: "";
+      position: absolute;
+      inset: 26px 34px;
+      border: 2px solid color-mix(in srgb, var(--accent-2) 72%, white);
+      border-radius: 50%;
+      box-shadow:
+        inset 0 0 30px color-mix(in srgb, var(--accent-2) 18%, transparent),
+        0 0 28px color-mix(in srgb, var(--accent-2) 18%, transparent);
+    }
+
+    .arena-visual::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 20%;
+      bottom: 20%;
+      width: 2px;
+      transform: translateX(-50%);
+      background: color-mix(in srgb, var(--accent-2) 55%, transparent);
+      box-shadow: 0 0 24px var(--accent-2);
+    }
+
+    .radar-ring {
+      position: absolute;
+      width: 170px;
+      height: 170px;
+      border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+      border-radius: 50%;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .radar-ring:nth-child(2) { width: 116px; height: 116px; }
+    .radar-ring:nth-child(3) { width: 62px; height: 62px; }
+
+    .scan-line {
+      position: absolute;
+      width: 2px;
+      height: 44%;
+      left: 50%;
+      top: 6%;
+      background: linear-gradient(to bottom, var(--accent), transparent);
+      transform-origin: bottom;
+      animation: scan 4.5s linear infinite;
+      box-shadow: 0 0 22px var(--accent);
+    }
+
+    @keyframes scan {
+      to { transform: rotate(360deg); }
+    }
+
+    .sync-card {
+      display: grid;
+      gap: 12px;
+    }
+
+    .sync-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--panel-muted);
+    }
+
+    .sync-row small {
+      display: block;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 900;
+      font-size: 0.68rem;
+    }
+
+    .sync-row strong {
+      display: block;
+      font-size: 0.92rem;
+      word-break: break-word;
+    }
+
+    .status-light {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-2);
+      font-weight: 900;
+    }
+
+    .status-light::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 16px currentColor;
+    }
+
+    .dashboard-controls {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) 180px 210px 180px auto auto;
+      gap: 12px;
+      padding: 14px;
+      margin: 0 0 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--panel) 86%, transparent);
+      box-shadow: var(--shadow);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+    }
+
+    .control-field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .control-field label {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-weight: 950;
+      padding-left: 4px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin: 18px 0 24px;
+    }
+
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: color-mix(in srgb, var(--panel) 84%, transparent);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      min-height: 122px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::after {
+      content: "";
+      position: absolute;
+      right: -34px;
+      top: -34px;
+      width: 92px;
+      height: 92px;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .stat-card small {
+      display: block;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-weight: 950;
+      font-size: 0.72rem;
+    }
+
+    .stat-card strong {
+      display: block;
+      margin-top: 12px;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      letter-spacing: -0.05em;
+      line-height: 1;
+    }
+
+    .stat-card span {
+      display: block;
+      color: var(--text-muted);
+      margin-top: 8px;
+      font-size: 0.88rem;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin: 22px 0 14px;
+    }
+
+    .section-heading h2 {
+      margin: 0;
+      font-size: clamp(1.55rem, 4vw, 2.6rem);
+      letter-spacing: -0.055em;
+      line-height: 1;
+    }
+
+    .section-heading p {
+      color: var(--text-muted);
+      margin: 8px 0 0;
+      line-height: 1.6;
+      max-width: 760px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 34px;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel-muted);
+      padding: 7px 11px;
+      font-size: 0.78rem;
+      font-weight: 900;
+    }
+
+    .match-groups {
+      display: grid;
+      gap: 20px;
+    }
+
+    .match-day {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--panel) 74%, transparent);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .match-day-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 13%, transparent), transparent);
+    }
+
+    .match-day-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -0.015em;
+    }
+
+    .match-day-header span {
+      color: var(--text-muted);
+      font-size: 0.86rem;
+      font-weight: 800;
+    }
+
+    .matches-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .match-card {
+      position: relative;
+      min-height: 260px;
+      display: grid;
+      gap: 14px;
+      align-content: space-between;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background:
+        linear-gradient(150deg, color-mix(in srgb, var(--panel-strong) 82%, transparent), color-mix(in srgb, var(--panel) 62%, transparent)),
+        var(--panel-muted);
+      padding: 17px;
+      overflow: hidden;
+      transition: transform 190ms ease, border-color 190ms ease, box-shadow 190ms ease;
+    }
+
+    .match-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 38%);
+      opacity: 0;
+      transition: opacity 190ms ease;
+    }
+
+    .match-card:hover {
+      transform: translateY(-4px);
+      border-color: color-mix(in srgb, var(--accent) 56%, var(--border));
+      box-shadow: 0 24px 70px color-mix(in srgb, var(--accent) 16%, transparent);
+    }
+
+    .match-card:hover::before { opacity: 1; }
+
+    .match-card.live {
+      border-color: color-mix(in srgb, var(--accent-2) 46%, var(--border));
+    }
+
+    .match-card.ft { opacity: 0.88; }
+
+    .card-top, .card-bottom, .match-meta-grid, .stadium-card-top, .stadium-meta {
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .stage-chip {
+      color: var(--text-muted);
+      font-size: 0.76rem;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 0.76rem;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border: 1px solid var(--border);
+      background: var(--panel-muted);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .status-pill.live {
+      color: var(--accent-2);
+      border-color: color-mix(in srgb, var(--accent-2) 44%, var(--border));
+      background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+      box-shadow: 0 0 24px color-mix(in srgb, var(--accent-2) 13%, transparent);
+    }
+
+    .status-pill.upcoming {
+      color: var(--accent);
+      border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+    }
+
+    .status-pill.ft {
+      color: var(--warning);
+      border-color: color-mix(in srgb, var(--warning) 46%, var(--border));
+      background: color-mix(in srgb, var(--warning) 10%, transparent);
+    }
+
+    .scoreline {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: 14px;
+      padding: 8px 0;
+    }
+
+    .team {
+      display: grid;
+      gap: 10px;
+      justify-items: center;
+      min-width: 0;
+      text-align: center;
+    }
+
+    .team-name {
+      max-width: 100%;
+      font-size: clamp(1rem, 2.2vw, 1.3rem);
+      line-height: 1.12;
+      font-weight: 950;
+      letter-spacing: -0.035em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .team-code {
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      font-weight: 950;
+      letter-spacing: 0.1em;
+    }
+
+    .flag-placeholder {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 58px;
+      height: 58px;
+      border-radius: 20px;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 950;
+      letter-spacing: 0.04em;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22), 0 12px 28px rgba(0,0,0,0.18);
+      overflow: hidden;
+    }
+
+    .flag-placeholder::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, rgba(255,255,255,0.28), transparent 42%, rgba(0,0,0,0.14));
+    }
+
+    .flag-placeholder span { position: relative; z-index: 1; }
+
+    .score-box {
+      display: grid;
+      justify-items: center;
+      min-width: 104px;
+      padding: 12px 13px;
+      border-radius: 19px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--panel-muted) 82%, transparent);
+    }
+
+    .score-box strong {
+      font-size: clamp(1.45rem, 3vw, 2.1rem);
+      line-height: 1;
+      letter-spacing: -0.055em;
+      white-space: nowrap;
+    }
+
+    .score-box small {
+      color: var(--text-muted);
+      margin-top: 7px;
+      font-weight: 900;
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-align: center;
+    }
+
+    .match-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .meta-tile {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--panel-muted);
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .meta-tile small {
+      color: var(--text-muted);
+      display: block;
+      font-size: 0.67rem;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 5px;
+    }
+
+    .meta-tile strong {
+      display: block;
+      font-size: 0.87rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-bottom {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-top: 2px;
+    }
+
+    .stadium-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent);
+      border: 0;
+      background: transparent;
+      padding: 0;
+      font-weight: 950;
+      text-align: left;
+    }
+
+    .stadium-link:hover { text-decoration: underline; }
+
+    .mini-button {
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--panel-muted);
+      color: var(--text);
+      padding: 9px 11px;
+      font-size: 0.84rem;
+      font-weight: 950;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .mini-button:hover {
+      transform: translateY(-1px);
+      border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+    }
+
+    .stadium-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .stadium-card {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--panel) 78%, transparent);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      overflow: hidden;
+      transition: transform 190ms ease, border-color 190ms ease, box-shadow 190ms ease;
+    }
+
+    .stadium-card:hover {
+      transform: translateY(-4px);
+      border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+      box-shadow: 0 24px 70px color-mix(in srgb, var(--accent) 15%, transparent);
+    }
+
+    .stadium-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .stadium-card h3 {
+      margin: 0;
+      font-size: 1.25rem;
+      letter-spacing: -0.04em;
+      line-height: 1.08;
+    }
+
+    .stadium-card p {
+      margin: 7px 0 0;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .capacity-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 88px;
+      border-radius: 15px;
+      padding: 9px 10px;
+      color: #031420;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      font-weight: 950;
+      box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 20%, transparent);
+    }
+
+    .layout-card {
+      position: relative;
+      height: 168px;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 28%),
+        linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent-3) 10%, transparent)),
+        var(--panel-muted);
+      overflow: hidden;
+      margin: 14px 0;
+    }
+
+    .layout-card svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .stadium-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+      margin: 14px 0;
+    }
+
+    .empty-state {
+      border: 1px dashed color-mix(in srgb, var(--accent) 42%, var(--border));
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--panel) 70%, transparent);
+      padding: 36px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-state strong {
+      display: block;
+      color: var(--text);
+      font-size: 1.25rem;
+      margin-bottom: 8px;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.62);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .modal-backdrop.open { display: grid; }
+
+    .modal {
+      width: min(980px, 100%);
+      max-height: min(820px, calc(100vh - 48px));
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      background: var(--panel-strong);
+      box-shadow: 0 34px 120px rgba(0,0,0,0.44);
+      animation: modalIn 180ms ease-out;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .modal-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--panel-strong) 94%, transparent);
+      backdrop-filter: blur(14px);
+    }
+
+    .modal-title h3 {
+      margin: 0;
+      font-size: clamp(1.5rem, 4vw, 2.4rem);
+      letter-spacing: -0.06em;
+      line-height: 1;
+    }
+
+    .modal-title p {
+      color: var(--text-muted);
+      margin: 6px 0 0;
+    }
+
+    .modal-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(270px, 0.9fr);
+      gap: 18px;
+      padding: 20px;
+    }
+
+    .modal-panel {
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: var(--panel-muted);
+      padding: 16px;
+    }
+
+    .modal-panel h4 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .fact-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .fact-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    .fact-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+    .fact-list span { color: var(--text-muted); }
+    .fact-list strong { text-align: right; }
+
+    .upcoming-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .upcoming-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      background: color-mix(in srgb, var(--panel-strong) 44%, transparent);
+    }
+
+    .upcoming-item strong {
+      font-size: 0.9rem;
+    }
+
+    .upcoming-item span {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      text-align: right;
+    }
+
+    .toast-container {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 120;
+      display: grid;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      width: min(360px, calc(100vw - 36px));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel-strong);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      padding: 13px 14px;
+      pointer-events: auto;
+      animation: toastIn 220ms ease-out;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+      border-top-color: var(--accent);
+      animation: spin 800ms linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    [hidden] { display: none !important; }
+
+    @media (max-width: 1180px) {
+      .nav {
+        grid-template-columns: 1fr auto;
+      }
+      .nav-tabs {
+        order: 3;
+        grid-column: 1 / -1;
+        width: 100%;
+        justify-content: center;
+      }
+      .top-actions { justify-self: end; }
+      .dashboard-controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .stadium-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+      .matches-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .modal-body { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      .site-shell { width: min(100% - 18px, 1440px); }
+      .topbar { top: 8px; border-radius: 22px; }
+      .nav { grid-template-columns: 1fr; gap: 10px; }
+      .brand { width: 100%; }
+      .top-actions {
+        width: 100%;
+        justify-content: stretch;
+      }
+      .timezone-control {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 5px;
+      }
+      .theme-toggle { flex: 0 0 46px; }
+      .nav-tabs {
+        overflow-x: auto;
+        justify-content: flex-start;
+        scrollbar-width: none;
+      }
+      .nav-tabs::-webkit-scrollbar { display: none; }
+      .nav-tab { flex: 1 0 auto; }
+      .hero { padding-top: 22px; }
+      .hero-card { min-height: 340px; }
+      .dashboard-controls { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .section-heading {
+        display: grid;
+        align-items: start;
+      }
+      .pill-row { justify-content: flex-start; }
+      .scoreline {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      .score-box { order: -1; width: 100%; }
+      .match-meta-grid { grid-template-columns: 1fr; }
+      .card-bottom { align-items: stretch; }
+      .card-bottom .mini-button { width: 100%; }
+      .stadium-grid { grid-template-columns: 1fr; }
+      .modal-backdrop { padding: 10px; }
+      .modal { border-radius: 24px; max-height: calc(100vh - 20px); }
+      .modal-header { align-items: flex-start; }
+      .fact-list li { align-items: flex-start; flex-direction: column; gap: 5px; }
+      .fact-list strong { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <nav class="nav" aria-label="Main navigation">
+        <a class="brand" href="#top" aria-label="World Cup Arena home">
+          <span class="brand-logo" aria-hidden="true"></span>
+          <span class="brand-copy">
+            <strong>World Cup Arena</strong>
+            <span data-i18n="brandSubtitle">Schedule + Stadium Guide</span>
+          </span>
+        </a>
+
+        <div class="nav-tabs" role="tablist" aria-label="Application sections" data-i18n-aria-label="ariaAppSections">
+          <button class="nav-tab active" type="button" role="tab" aria-selected="true" data-tab="schedule" data-i18n="navSchedule">Schedule</button>
+          <button class="nav-tab" type="button" role="tab" aria-selected="false" data-tab="stadiums" data-i18n="navStadiums">Stadiums</button>
+        </div>
+
+        <div class="top-actions">
+          <div class="timezone-control">
+            <label for="timezoneSelect" data-i18n="labelTimezone">Timezone</label>
+            <select id="timezoneSelect" class="select" aria-label="Preview schedule in timezone" data-i18n-aria-label="ariaPreviewTimezone">
+              <!-- Static fallback options keep the dropdown usable if a browser blocks storage or before JavaScript hydrates it. -->
+              <option value="Asia/Dhaka" selected>+06 Dhaka</option>
+              <option value="UTC">GMT / UTC — Greenwich Mean Time</option>
+              <option value="America/New_York">EST/ET — New York</option>
+              <option value="America/Los_Angeles">PT — Los Angeles</option>
+              <option value="Europe/London">BST/GMT — London</option>
+              <option value="Europe/Paris">CET/CEST — Paris</option>
+              <option value="Asia/Bangkok">ICT — Bangkok/Vientiane</option>
+              <option value="Asia/Tokyo">JST — Tokyo</option>
+              <option value="Asia/Dubai">GST — Dubai</option>
+              <option value="Australia/Sydney">AET — Sydney</option>
+            </select>
+          </div>
+          <div class="timezone-control language-control">
+            <label for="languageSelect" data-i18n="labelLanguage">Language</label>
+            <select id="languageSelect" class="select" aria-label="Choose language" data-i18n-aria-label="ariaChooseLanguage">
+              <option value="en">English</option>
+              <option value="bn">বাংলা</option>
+              <option value="hi">हिन्दी</option>
+              <option value="ur">اردو</option>
+            </select>
+          </div>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle light and dark mode" title="Toggle theme" data-i18n-aria-label="ariaThemeToggle">☾</button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="appTitle">
+        <div class="hero-card">
+          <div>
+            <span class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span><span data-i18n="eyebrow">Live schedule intelligence</span></span>
+            <h1 id="appTitle"><span data-i18n="heroTitlePrefix">Follow every kickoff in your</span> <span class="gradient-text" data-i18n="heroTitleHighlight">local time.</span></h1>
+            <p data-i18n="heroDesc">
+              A modern Football World Cup dashboard with automatic timezone conversion, live-style score and attendance refreshes,
+              searchable fixtures, and an interactive arena guide built for mobile, tablet, and desktop.
+            </p>
+            <div class="hero-actions">
+              <button class="button primary" type="button" data-tab="schedule" data-i18n="viewSchedule">View Schedule</button>
+              <button class="button ghost" type="button" data-tab="stadiums" data-i18n="exploreStadiums">Explore Stadiums</button>
+              <button id="manualRefreshHero" class="button" type="button" data-i18n="refreshData">Refresh Data</button>
+            </div>
+          </div>
+          <div class="pill-row" aria-label="Timezone summary" data-i18n-aria-label="ariaTimezoneSummary">
+            <span class="pill" id="detectedTimezonePill">Detected timezone: …</span>
+            <span class="pill" id="selectedTimezonePill">Viewing: …</span>
+          </div>
+        </div>
+
+        <aside class="glass-card live-panel" aria-label="Live data status" data-i18n-aria-label="ariaLiveDataStatus">
+          <div class="arena-visual" aria-hidden="true">
+            <span class="radar-ring"></span>
+            <span class="radar-ring"></span>
+            <span class="radar-ring"></span>
+            <span class="scan-line"></span>
+          </div>
+          <div class="sync-card">
+            <div class="sync-row">
+              <div>
+                <small data-i18n="dataSource">Data source</small>
+                <strong id="dataSourceText" data-i18n="initializing">Initializing…</strong>
+              </div>
+              <span class="status-light" id="syncStatusText" data-i18n="ready">Ready</span>
+            </div>
+            <div class="sync-row">
+              <div>
+                <small data-i18n="lastUpdate">Last update</small>
+                <strong id="lastUpdatedText" data-i18n="never">Never</strong>
+              </div>
+              <div>
+                <small data-i18n="nextRefresh">Next refresh</small>
+                <strong id="nextRefreshText">60s</strong>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section id="scheduleControls" class="dashboard-controls" aria-label="Schedule search and filters" data-i18n-aria-label="ariaScheduleFilters">
+        <div class="control-field">
+          <label for="teamSearch" data-i18n="teamSearch">Team search</label>
+          <input id="teamSearch" class="input" type="search" placeholder="Search teams, groups, or match IDs…" data-i18n-placeholder="searchPlaceholder" autocomplete="off" />
+        </div>
+        <div class="control-field">
+          <label for="groupFilter" data-i18n="group">Group</label>
+          <select id="groupFilter" class="select"><option value="all" data-i18n="allGroups">All Groups</option></select>
+        </div>
+        <div class="control-field">
+          <label for="stadiumFilter" data-i18n="stadium">Stadium</label>
+          <select id="stadiumFilter" class="select"><option value="all" data-i18n="allStadiums">All Stadiums</option></select>
+        </div>
+        <div class="control-field">
+          <label for="stageFilter" data-i18n="stage">Stage</label>
+          <select id="stageFilter" class="select"><option value="all" data-i18n="allStages">All Stages</option></select>
+        </div>
+        <button id="resetFilters" class="button ghost" type="button" data-i18n="reset">Reset</button>
+        <button id="manualRefresh" class="button primary" type="button"><span id="refreshSpinner" class="spinner" hidden></span><span data-i18n="sync">Sync</span></button>
+      </section>
+
+      <section class="stats-grid" aria-label="Tournament statistics" data-i18n-aria-label="ariaTournamentStats">
+        <article class="stat-card">
+          <small data-i18n="visibleFixtures">Visible fixtures</small>
+          <strong id="statMatches">0</strong>
+          <span id="statMatchesSub" data-i18n="readyToLoad">Ready to load</span>
+        </article>
+        <article class="stat-card">
+          <small data-i18n="liveNow">Live now</small>
+          <strong id="statLive">0</strong>
+          <span data-i18n="autoRefresh60">Auto-refreshing every 60 seconds</span>
+        </article>
+        <article class="stat-card">
+          <small data-i18n="stadiums">Stadiums</small>
+          <strong id="statStadiums">0</strong>
+          <span id="statCapacitySub" data-i18n="capacityIntelligence">Capacity intelligence</span>
+        </article>
+        <article class="stat-card">
+          <small data-i18n="avgAttendance">Avg. attendance</small>
+          <strong id="statAttendance">0</strong>
+          <span data-i18n="updatedFromFeed">Updated from schedule feed</span>
+        </article>
+      </section>
+
+      <section id="scheduleSection" class="tab-panel" role="tabpanel" aria-labelledby="Schedule tab">
+        <div class="section-heading">
+          <div>
+            <h2 data-i18n="scheduleTitle">Interactive Match Schedule</h2>
+            <p data-i18n="scheduleDesc">Fixtures are grouped by localized date and tournament stage. Change the timezone in the sticky navigation to instantly preview kickoffs worldwide.</p>
+          </div>
+          <div class="pill-row">
+            <span class="pill" id="matchCountPill">0 matches</span>
+            <span class="pill" id="timezoneAbbrevPill">TZ</span>
+          </div>
+        </div>
+        <div id="matchGroups" class="match-groups" aria-live="polite"></div>
+      </section>
+
+      <section id="stadiumsSection" class="tab-panel" role="tabpanel" aria-labelledby="Stadiums tab" hidden>
+        <div class="section-heading">
+          <div>
+            <h2 data-i18n="stadiumGuideTitle">Stadium & Arena Guide</h2>
+            <p data-i18n="stadiumGuideDesc">Explore capacity, pitch surface, expected crowd data, and a compact visual layout for every tournament venue.</p>
+          </div>
+          <div class="pill-row">
+            <span class="pill" data-i18n="capacityCrowdFeed">Capacity + crowd feed</span>
+            <span class="pill" data-i18n="responsiveVenueCards">Responsive venue cards</span>
+          </div>
+        </div>
+        <div id="stadiumGrid" class="stadium-grid" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="stadiumModalBackdrop" class="modal-backdrop" role="presentation">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalStadiumName">
+      <div class="modal-header">
+        <div class="modal-title">
+          <h3 id="modalStadiumName">Stadium</h3>
+          <p id="modalStadiumCity">City</p>
+        </div>
+        <button id="closeModal" class="icon-button" type="button" aria-label="Close stadium details" data-i18n-aria-label="ariaCloseStadiumDetails">✕</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      /**
+       * API INTEGRATION NOTES
+       * ---------------------
+       * Set CONFIG.DATA_ENDPOINT to any JSON feed you control, for example:
+       * - GitHub Raw JSON: https://raw.githubusercontent.com/<org>/<repo>/main/world-cup-feed.json
+       * - Google Sheets via Apps Script JSON endpoint
+       * - A free sports API proxy you own, if that API requires an API key
+       *
+       * Expected normalized schema:
+       * {
+       *   "generatedAt": "2026-06-28T12:00:00Z",
+       *   "stadiums": [{ "id", "name", "city", "country", "capacity", "pitchType" }],
+       *   "matches": [{
+       *     "id", "stage", "group", "kickoffUtc", "stadiumId",
+       *     "home": { "name", "code", "colors" },
+       *     "away": { "name", "code", "colors" },
+       *     "status", "minute", "score", "attendance", "expectedSpectators"
+       *   }]
+       * }
+       *
+       * The same fetch pipeline below polls the endpoint every 60 seconds and rebinds
+       * schedule, scores, statuses, and attendance without a page reload.
+       */
+      const CONFIG = {
+        DATA_ENDPOINT: new URLSearchParams(window.location.search).get('endpoint') || '',
+        DEFAULT_TIMEZONE: 'Asia/Dhaka',
+        LIVE_API: {
+          games: 'https://worldcup26.ir/get/games',
+          stadiums: 'https://worldcup26.ir/get/stadiums'
+        },
+        POLL_INTERVAL_MS: 60_000,
+        REQUEST_TIMEOUT_MS: 8_000,
+        MOCK_LATENCY_MS: 120,
+        STORAGE_KEYS: {
+          theme: 'world-cup-arena-theme',
+          timezone: 'world-cup-arena-timezone-dhaka-v1',
+          language: 'world-cup-arena-language'
+        }
+      };
+
+      const MOCK_SESSION_STARTED_AT = Date.now();
+
+      const CACHED_WORLDCUP26_DATA = {"generatedAt":"2026-06-29T00:00:00+06:00","games":[{"id":"6","home_team_id":"15","away_team_id":"16","home_score":"2","away_score":"0","group":"D","matchday":"1","local_date":"06/13/2026 21:00","stadium_id":"13","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Australia","away_team_name_en":"Turkey"},{"id":"8","home_team_id":"7","away_team_id":"8","home_score":"1","away_score":"1","group":"B","matchday":"1","local_date":"06/13/2026 12:00","stadium_id":"15","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Qatar","away_team_name_en":"Switzerland"},{"id":"31","home_team_id":"13","away_team_id":"15","home_score":"2","away_score":"0","group":"D","matchday":"2","local_date":"06/19/2026 12:00","stadium_id":"14","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"United States","away_team_name_en":"Australia"},{"id":"33","home_team_id":"17","away_team_id":"19","home_score":"2","away_score":"1","group":"E","matchday":"2","local_date":"06/20/2026 16:00","stadium_id":"12","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Germany","away_team_name_en":"Ivory Coast"},{"id":"35","home_team_id":"21","away_team_id":"23","home_score":"5","away_score":"1","group":"F","matchday":"2","local_date":"06/20/2026 12:00","stadium_id":"5","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Netherlands","away_team_name_en":"Sweden"},{"id":"41","home_team_id":"33","away_team_id":"35","home_score":"3","away_score":"0","group":"I","matchday":"2","local_date":"06/22/2026 17:00","stadium_id":"10","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"France","away_team_name_en":"Iraq"},{"id":"42","home_team_id":"36","away_team_id":"34","home_score":"3","away_score":"2","group":"I","matchday":"2","local_date":"06/22/2026 20:00","stadium_id":"11","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Norway","away_team_name_en":"Senegal"},{"id":"59","home_team_id":"22","away_team_id":"23","home_score":"1","away_score":"1","group":"F","matchday":"3","local_date":"06/25/2026 18:00","stadium_id":"4","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Japan","away_team_name_en":"Sweden"},{"id":"95","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"R16","matchday":"5","local_date":"07/07/2026 12:00","stadium_id":"7","finished":"FALSE","time_elapsed":"notstarted","type":"r16","home_team_label":"Winner Match 86","away_team_label":"Winner Match 88"},{"id":"101","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"SF","matchday":"7","local_date":"07/14/2026 14:00","stadium_id":"4","finished":"FALSE","time_elapsed":"notstarted","type":"sf","home_team_label":"Winner Match 97","away_team_label":"Winner Match 98"},{"id":"102","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"SF","matchday":"7","local_date":"07/15/2026 15:00","stadium_id":"7","finished":"FALSE","time_elapsed":"notstarted","type":"sf","home_team_label":"Winner Match 99","away_team_label":"Winner Match 100"},{"id":"5","home_team_id":"11","away_team_id":"12","home_score":"0","away_score":"1","group":"C","matchday":"1","local_date":"06/13/2026 21:00","stadium_id":"9","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Haiti","away_team_name_en":"Scotland"},{"id":"22","home_team_id":"45","away_team_id":"46","home_score":"4","away_score":"2","group":"L","matchday":"1","local_date":"06/17/2026 15:00","stadium_id":"4","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"England","away_team_name_en":"Croatia"},{"id":"39","home_team_id":"29","away_team_id":"31","home_score":"4","away_score":"0","group":"H","matchday":"2","local_date":"06/21/2026 12:00","stadium_id":"7","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Spain","away_team_name_en":"Saudi Arabia"},{"id":"44","home_team_id":"40","away_team_id":"38","home_score":"1","away_score":"2","group":"J","matchday":"2","local_date":"06/22/2026 20:00","stadium_id":"15","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Jordan","away_team_name_en":"Algeria"},{"id":"45","home_team_id":"41","away_team_id":"43","home_score":"5","away_score":"0","group":"K","matchday":"2","local_date":"06/23/2026 12:00","stadium_id":"5","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Portugal","away_team_name_en":"Uzbekistan"},{"id":"46","home_team_id":"48","away_team_id":"46","home_score":"0","away_score":"1","group":"L","matchday":"2","local_date":"06/23/2026 19:00","stadium_id":"12","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Panama","away_team_name_en":"Croatia"},{"id":"52","home_team_id":"4","away_team_id":"1","home_score":"0","away_score":"3","group":"A","matchday":"3","local_date":"06/24/2026 19:00","stadium_id":"1","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Czech Republic","away_team_name_en":"Mexico"},{"id":"60","home_team_id":"24","away_team_id":"21","home_score":"1","away_score":"3","group":"F","matchday":"3","local_date":"06/25/2026 18:00","stadium_id":"6","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Tunisia","away_team_name_en":"Netherlands"},{"id":"61","home_team_id":"34","away_team_id":"35","home_score":"5","away_score":"0","group":"I","matchday":"3","local_date":"06/26/2026 15:00","stadium_id":"12","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Senegal","away_team_name_en":"Iraq"},{"id":"67","home_team_id":"48","away_team_id":"45","home_score":"0","away_score":"2","group":"L","matchday":"3","local_date":"06/27/2026 17:00","stadium_id":"11","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Panama","away_team_name_en":"England"},{"id":"72","home_team_id":"42","away_team_id":"43","home_score":"3","away_score":"1","group":"K","matchday":"3","local_date":"06/27/2026 19:30","stadium_id":"7","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Democratic Republic of the Congo","away_team_name_en":"Uzbekistan"},{"id":"86","home_team_id":"37","away_team_id":"30","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/03/2026 18:00","stadium_id":"8","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Argentina","away_team_name_en":"Cape Verde","home_team_label":"Winner Group J","away_team_label":"Runner-up Group H"},{"id":"88","home_team_id":"15","away_team_id":"26","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/03/2026 13:00","stadium_id":"4","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Australia","away_team_name_en":"Egypt","home_team_label":"Runner-up Group D","away_team_label":"Runner-up Group G"},{"id":"100","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"QF","matchday":"6","local_date":"07/11/2026 20:00","stadium_id":"6","finished":"FALSE","time_elapsed":"notstarted","type":"qf","home_team_label":"Winner Match 95","away_team_label":"Winner Match 96"},{"id":"2","home_team_id":"3","away_team_id":"4","home_score":"2","away_score":"1","group":"A","matchday":"1","local_date":"06/11/2026 20:00","stadium_id":"2","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"South Korea","away_team_name_en":"Czech Republic"},{"id":"4","home_team_id":"13","away_team_id":"14","home_score":"4","away_score":"1","group":"D","matchday":"1","local_date":"06/12/2026 18:00","stadium_id":"16","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"United States","away_team_name_en":"Paraguay"},{"id":"17","home_team_id":"33","away_team_id":"34","home_score":"3","away_score":"1","group":"I","matchday":"1","local_date":"06/16/2026 15:00","stadium_id":"11","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"France","away_team_name_en":"Senegal"},{"id":"18","home_team_id":"35","away_team_id":"36","home_score":"1","away_score":"4","group":"I","matchday":"1","local_date":"06/16/2026 18:00","stadium_id":"9","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Iraq","away_team_name_en":"Norway"},{"id":"21","home_team_id":"41","away_team_id":"42","home_score":"1","away_score":"1","group":"K","matchday":"1","local_date":"06/17/2026 12:00","stadium_id":"5","finished":"TRUE","time_elapsed":"Finished","type":"group","home_team_name_en":"Portugal","away_team_name_en":"Democratic Republic of the Congo"},{"id":"37","home_team_id":"25","away_team_id":"27","home_score":"0","away_score":"0","group":"G","matchday":"2","local_date":"06/21/2026 12:00","stadium_id":"16","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Belgium","away_team_name_en":"Iran"},{"id":"50","home_team_id":"10","away_team_id":"11","home_score":"4","away_score":"2","group":"C","matchday":"3","local_date":"06/24/2026 18:00","stadium_id":"7","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Morocco","away_team_name_en":"Haiti"},{"id":"51","home_team_id":"2","away_team_id":"3","home_score":"1","away_score":"0","group":"A","matchday":"3","local_date":"06/24/2026 19:00","stadium_id":"3","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"South Africa","away_team_name_en":"South Korea"},{"id":"87","home_team_id":"44","away_team_id":"47","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/03/2026 20:30","stadium_id":"6","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Colombia","away_team_name_en":"Ghana","home_team_label":"Winner Group K","away_team_label":"3rd Group D/E/I/J/L"},{"id":"98","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"QF","matchday":"6","local_date":"07/10/2026 12:00","stadium_id":"16","finished":"FALSE","time_elapsed":"notstarted","type":"qf","home_team_label":"Winner Match 93","away_team_label":"Winner Match 94"},{"id":"9","home_team_id":"19","away_team_id":"20","home_score":"1","away_score":"0","group":"E","matchday":"1","local_date":"06/14/2026 19:00","stadium_id":"10","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Ivory Coast","away_team_name_en":"Ecuador"},{"id":"10","home_team_id":"17","away_team_id":"18","home_score":"7","away_score":"1","group":"E","matchday":"1","local_date":"06/14/2026 12:00","stadium_id":"5","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Germany","away_team_name_en":"Curaçao"},{"id":"12","home_team_id":"23","away_team_id":"24","home_score":"5","away_score":"1","group":"F","matchday":"1","local_date":"06/14/2026 20:00","stadium_id":"3","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Sweden","away_team_name_en":"Tunisia"},{"id":"25","home_team_id":"1","away_team_id":"3","home_score":"1","away_score":"0","group":"A","matchday":"2","local_date":"06/18/2026 19:00","stadium_id":"2","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Mexico","away_team_name_en":"South Korea"},{"id":"27","home_team_id":"5","away_team_id":"7","home_score":"6","away_score":"0","group":"B","matchday":"2","local_date":"06/18/2026 15:00","stadium_id":"13","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Canada","away_team_name_en":"Qatar"},{"id":"30","home_team_id":"12","away_team_id":"10","home_score":"0","away_score":"1","group":"C","matchday":"2","local_date":"06/19/2026 18:00","stadium_id":"9","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Scotland","away_team_name_en":"Morocco"},{"id":"32","home_team_id":"16","away_team_id":"14","home_score":"0","away_score":"1","group":"D","matchday":"2","local_date":"06/19/2026 20:00","stadium_id":"15","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Turkey","away_team_name_en":"Paraguay"},{"id":"43","home_team_id":"37","away_team_id":"39","home_score":"2","away_score":"0","group":"J","matchday":"2","local_date":"06/22/2026 12:00","stadium_id":"4","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Argentina","away_team_name_en":"Austria"},{"id":"49","home_team_id":"12","away_team_id":"9","home_score":"0","away_score":"3","group":"C","matchday":"3","local_date":"06/24/2026 18:00","stadium_id":"8","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Scotland","away_team_name_en":"Brazil"},{"id":"53","home_team_id":"6","away_team_id":"7","home_score":"3","away_score":"1","group":"B","matchday":"3","local_date":"06/24/2026 12:00","stadium_id":"14","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Bosnia and Herzegovina","away_team_name_en":"Qatar"},{"id":"58","home_team_id":"16","away_team_id":"13","home_score":"3","away_score":"2","group":"D","matchday":"3","local_date":"06/25/2026 19:00","stadium_id":"16","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Turkey","away_team_name_en":"United States"},{"id":"62","home_team_id":"36","away_team_id":"33","home_score":"1","away_score":"4","group":"I","matchday":"3","local_date":"06/26/2026 15:00","stadium_id":"9","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Norway","away_team_name_en":"France"},{"id":"63","home_team_id":"26","away_team_id":"27","home_score":"1","away_score":"1","group":"G","matchday":"3","local_date":"06/26/2026 20:00","stadium_id":"14","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Egypt","away_team_name_en":"Iran"},{"id":"65","home_team_id":"30","away_team_id":"31","home_score":"0","away_score":"0","group":"H","matchday":"3","local_date":"06/26/2026 19:00","stadium_id":"5","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Cape Verde","away_team_name_en":"Saudi Arabia"},{"id":"66","home_team_id":"32","away_team_id":"29","home_score":"0","away_score":"1","group":"H","matchday":"3","local_date":"06/26/2026 18:00","stadium_id":"2","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Uruguay","away_team_name_en":"Spain"},{"id":"70","home_team_id":"40","away_team_id":"37","home_score":"1","away_score":"3","group":"J","matchday":"3","local_date":"06/27/2026 21:00","stadium_id":"4","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Jordan","away_team_name_en":"Argentina"},{"id":"76","home_team_id":"9","away_team_id":"22","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"06/29/2026 12:00","stadium_id":"5","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Brazil","away_team_name_en":"Japan","home_team_label":"Winner Group C","away_team_label":"Runner-up Group F"},{"id":"83","home_team_id":"41","away_team_id":"46","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/02/2026 19:00","stadium_id":"12","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Portugal","away_team_name_en":"Croatia","home_team_label":"Runner-up Group K","away_team_label":"Runner-up Group L"},{"id":"85","home_team_id":"8","away_team_id":"38","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/02/2026 20:00","stadium_id":"13","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Switzerland","away_team_name_en":"Algeria","home_team_label":"Winner Group B","away_team_label":"3rd Group E/F/G/I/J"},{"id":"93","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"R16","matchday":"5","local_date":"07/06/2026 14:00","stadium_id":"4","finished":"FALSE","time_elapsed":"notstarted","type":"r16","home_team_label":"Winner Match 83","away_team_label":"Winner Match 84"},{"id":"96","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"R16","matchday":"5","local_date":"07/07/2026 13:00","stadium_id":"13","finished":"FALSE","time_elapsed":"notstarted","type":"r16","home_team_label":"Winner Match 85","away_team_label":"Winner Match 87"},{"id":"1","home_team_id":"1","away_team_id":"2","home_score":"2","away_score":"0","group":"A","matchday":"1","local_date":"06/11/2026 13:00","stadium_id":"1","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Mexico","away_team_name_en":"South Africa"},{"id":"7","home_team_id":"9","away_team_id":"10","home_score":"1","away_score":"1","group":"C","matchday":"1","local_date":"06/13/2026 18:00","stadium_id":"11","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Brazil","away_team_name_en":"Morocco"},{"id":"11","home_team_id":"21","away_team_id":"22","home_score":"2","away_score":"2","group":"F","matchday":"1","local_date":"06/14/2026 15:00","stadium_id":"4","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Netherlands","away_team_name_en":"Japan"},{"id":"26","home_team_id":"8","away_team_id":"6","home_score":"4","away_score":"1","group":"B","matchday":"2","local_date":"06/18/2026 12:00","stadium_id":"16","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Switzerland","away_team_name_en":"Bosnia and Herzegovina"},{"id":"29","home_team_id":"9","away_team_id":"11","home_score":"3","away_score":"0","group":"C","matchday":"2","local_date":"06/19/2026 21:00","stadium_id":"10","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Brazil","away_team_name_en":"Haiti"},{"id":"36","home_team_id":"24","away_team_id":"22","home_score":"0","away_score":"4","group":"F","matchday":"2","local_date":"06/20/2026 22:00","stadium_id":"3","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Tunisia","away_team_name_en":"Japan"},{"id":"38","home_team_id":"28","away_team_id":"26","home_score":"1","away_score":"3","group":"G","matchday":"2","local_date":"06/21/2026 18:00","stadium_id":"13","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"New Zealand","away_team_name_en":"Egypt"},{"id":"40","home_team_id":"32","away_team_id":"30","home_score":"2","away_score":"2","group":"H","matchday":"2","local_date":"06/21/2026 18:00","stadium_id":"8","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Uruguay","away_team_name_en":"Cape Verde"},{"id":"47","home_team_id":"44","away_team_id":"42","home_score":"1","away_score":"0","group":"K","matchday":"2","local_date":"06/23/2026 20:00","stadium_id":"2","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Colombia","away_team_name_en":"Democratic Republic of the Congo"},{"id":"71","home_team_id":"44","away_team_id":"41","home_score":"0","away_score":"0","group":"K","matchday":"3","local_date":"06/27/2026 19:30","stadium_id":"8","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Colombia","away_team_name_en":"Portugal"},{"id":"73","home_team_id":"2","away_team_id":"5","home_score":"null","away_score":"null","group":"R32","matchday":"4","local_date":"06/28/2026 12:00","stadium_id":"16","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"South Africa","away_team_name_en":"Canada","home_team_label":"Runner-up Group A","away_team_label":"Runner-up Group B"},{"id":"77","home_team_id":"33","away_team_id":"23","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"06/30/2026 17:00","stadium_id":"11","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"France","away_team_name_en":"Sweden","home_team_label":"Winner Group I","away_team_label":"3rd Group C/D/F/G/H"},{"id":"84","home_team_id":"29","away_team_id":"39","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/02/2026 12:00","stadium_id":"16","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Spain","away_team_name_en":"Austria","home_team_label":"Winner Group H","away_team_label":"Runner-up Group J"},{"id":"90","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"R16","matchday":"5","local_date":"07/04/2026 12:00","stadium_id":"5","finished":"FALSE","time_elapsed":"notstarted","type":"r16","home_team_label":"Winner Match 73","away_team_label":"Winner Match 75"},{"id":"92","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"R16","matchday":"5","local_date":"07/05/2026 18:00","stadium_id":"1","finished":"FALSE","time_elapsed":"notstarted","type":"r16","home_team_label":"Winner Match 79","away_team_label":"Winner Match 80"},{"id":"94","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"R16","matchday":"5","local_date":"07/06/2026 17:00","stadium_id":"14","finished":"FALSE","time_elapsed":"notstarted","type":"r16","home_team_label":"Winner Match 81","away_team_label":"Winner Match 82"},{"id":"14","home_team_id":"29","away_team_id":"30","home_score":"0","away_score":"0","group":"H","matchday":"1","local_date":"06/15/2026 12:00","stadium_id":"7","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Spain","away_team_name_en":"Cape Verde"},{"id":"16","home_team_id":"31","away_team_id":"32","home_score":"1","away_score":"1","group":"H","matchday":"1","local_date":"06/15/2026 18:00","stadium_id":"8","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Saudi Arabia","away_team_name_en":"Uruguay"},{"id":"20","home_team_id":"39","away_team_id":"40","home_score":"3","away_score":"1","group":"J","matchday":"1","local_date":"06/16/2026 21:00","stadium_id":"15","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Austria","away_team_name_en":"Jordan"},{"id":"23","home_team_id":"43","away_team_id":"44","home_score":"1","away_score":"3","group":"K","matchday":"1","local_date":"06/17/2026 20:00","stadium_id":"1","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Uzbekistan","away_team_name_en":"Colombia"},{"id":"91","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"R16","matchday":"5","local_date":"07/05/2026 16:00","stadium_id":"11","finished":"FALSE","time_elapsed":"notstarted","type":"r16","home_team_label":"Winner Match 76","away_team_label":"Winner Match 78"},{"id":"97","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"QF","matchday":"6","local_date":"07/09/2026 16:00","stadium_id":"9","finished":"FALSE","time_elapsed":"notstarted","type":"qf","home_team_label":"Winner Match 89","away_team_label":"Winner Match 90"},{"id":"104","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"FINAL","matchday":"9","local_date":"07/19/2026 15:00","stadium_id":"11","finished":"FALSE","time_elapsed":"notstarted","type":"final","home_team_label":"Winner Match 101","away_team_label":"Winner Match 102"},{"id":"3","home_team_id":"5","away_team_id":"6","home_score":"1","away_score":"1","group":"B","matchday":"1","local_date":"06/12/2026 15:00","stadium_id":"12","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Canada","away_team_name_en":"Bosnia and Herzegovina"},{"id":"13","home_team_id":"27","away_team_id":"28","home_score":"2","away_score":"2","group":"G","matchday":"1","local_date":"06/15/2026 18:00","stadium_id":"16","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Iran","away_team_name_en":"New Zealand"},{"id":"19","home_team_id":"37","away_team_id":"38","home_score":"3","away_score":"0","group":"J","matchday":"1","local_date":"06/16/2026 20:00","stadium_id":"6","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Argentina","away_team_name_en":"Algeria"},{"id":"24","home_team_id":"47","away_team_id":"48","home_score":"1","away_score":"0","group":"L","matchday":"1","local_date":"06/17/2026 19:00","stadium_id":"12","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Ghana","away_team_name_en":"Panama"},{"id":"28","home_team_id":"4","away_team_id":"2","home_score":"1","away_score":"1","group":"A","matchday":"2","local_date":"06/18/2026 12:00","stadium_id":"7","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Czech Republic","away_team_name_en":"South Africa"},{"id":"48","home_team_id":"45","away_team_id":"47","home_score":"0","away_score":"0","group":"L","matchday":"2","local_date":"06/23/2026 16:00","stadium_id":"9","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"England","away_team_name_en":"Ghana"},{"id":"55","home_team_id":"18","away_team_id":"19","home_score":"0","away_score":"2","group":"E","matchday":"3","local_date":"06/25/2026 16:00","stadium_id":"10","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Curaçao","away_team_name_en":"Ivory Coast"},{"id":"56","home_team_id":"20","away_team_id":"17","home_score":"2","away_score":"1","group":"E","matchday":"3","local_date":"06/25/2026 16:00","stadium_id":"11","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Ecuador","away_team_name_en":"Germany"},{"id":"68","home_team_id":"46","away_team_id":"47","home_score":"2","away_score":"1","group":"L","matchday":"3","local_date":"06/27/2026 17:00","stadium_id":"10","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Croatia","away_team_name_en":"Ghana"},{"id":"69","home_team_id":"38","away_team_id":"39","home_score":"3","away_score":"3","group":"J","matchday":"3","local_date":"06/27/2026 21:00","stadium_id":"6","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Algeria","away_team_name_en":"Austria"},{"id":"74","home_team_id":"17","away_team_id":"14","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"06/29/2026 16:30","stadium_id":"9","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Germany","away_team_name_en":"Paraguay","home_team_label":"Winner Group E","away_team_label":"3rd Group A/B/C/D/F"},{"id":"81","home_team_id":"13","away_team_id":"6","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/01/2026 17:00","stadium_id":"15","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"United States","away_team_name_en":"Bosnia and Herzegovina","home_team_label":"Winner Group D","away_team_label":"3rd Group B/E/F/I/J"},{"id":"103","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"3RD","matchday":"8","local_date":"07/18/2026 17:00","stadium_id":"8","finished":"FALSE","time_elapsed":"notstarted","type":"third","home_team_label":"Loser Match 101","away_team_label":"Loser Match 102"},{"id":"15","home_team_id":"25","away_team_id":"26","home_score":"1","away_score":"1","group":"G","matchday":"1","local_date":"06/15/2026 12:00","stadium_id":"14","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Belgium","away_team_name_en":"Egypt"},{"id":"34","home_team_id":"20","away_team_id":"18","home_score":"0","away_score":"0","group":"E","matchday":"2","local_date":"06/20/2026 19:00","stadium_id":"6","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Ecuador","away_team_name_en":"Curaçao"},{"id":"54","home_team_id":"8","away_team_id":"5","home_score":"2","away_score":"1","group":"B","matchday":"3","local_date":"06/24/2026 12:00","stadium_id":"13","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Switzerland","away_team_name_en":"Canada"},{"id":"57","home_team_id":"14","away_team_id":"15","home_score":"0","away_score":"0","group":"D","matchday":"3","local_date":"06/25/2026 19:00","stadium_id":"15","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"Paraguay","away_team_name_en":"Australia"},{"id":"64","home_team_id":"28","away_team_id":"25","home_score":"1","away_score":"5","group":"G","matchday":"3","local_date":"06/26/2026 20:00","stadium_id":"13","finished":"TRUE","time_elapsed":"finished","type":"group","home_team_name_en":"New Zealand","away_team_name_en":"Belgium"},{"id":"75","home_team_id":"21","away_team_id":"10","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"06/29/2026 19:00","stadium_id":"3","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Netherlands","away_team_name_en":"Morocco","home_team_label":"Winner Group F","away_team_label":"Runner-up Group C"},{"id":"78","home_team_id":"19","away_team_id":"36","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"06/30/2026 12:00","stadium_id":"4","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Ivory Coast","away_team_name_en":"Norway","home_team_label":"Runner-up Group E","away_team_label":"Runner-up Group I"},{"id":"79","home_team_id":"1","away_team_id":"20","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"06/30/2026 19:00","stadium_id":"1","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Mexico","away_team_name_en":"Ecuador","home_team_label":"Winner Group A","away_team_label":"3rd Group C/E/F/H/I"},{"id":"80","home_team_id":"45","away_team_id":"42","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/01/2026 12:00","stadium_id":"7","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"England","away_team_name_en":"Democratic Republic of the Congo","home_team_label":"Winner Group L","away_team_label":"3rd Group E/H/I/J/K"},{"id":"82","home_team_id":"25","away_team_id":"34","home_score":"0","away_score":"0","group":"R32","matchday":"4","local_date":"07/01/2026 13:00","stadium_id":"14","finished":"FALSE","time_elapsed":"notstarted","type":"r32","home_team_name_en":"Belgium","away_team_name_en":"Senegal","home_team_label":"Winner Group G","away_team_label":"3rd Group A/E/H/I/J"},{"id":"89","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"R16","matchday":"5","local_date":"07/04/2026 17:00","stadium_id":"10","finished":"FALSE","time_elapsed":"notstarted","type":"r16","home_team_label":"Winner Match 74","away_team_label":"Winner Match 77"},{"id":"99","home_team_id":"0","away_team_id":"0","home_score":"0","away_score":"0","group":"QF","matchday":"6","local_date":"07/11/2026 17:00","stadium_id":"8","finished":"FALSE","time_elapsed":"notstarted","type":"qf","home_team_label":"Winner Match 91","away_team_label":"Winner Match 92"}],"stadiums":[{"id":"1","name_en":"Estadio Azteca","fifa_name":"Mexico City Stadium","city_en":"Mexico City","country_en":"Mexico","capacity":83000,"region":"Central"},{"id":"2","name_en":"Estadio Akron","fifa_name":"Estadio Guadalajara","city_en":"Guadalajara (Zapopan)","country_en":"Mexico","capacity":48000,"region":"Central"},{"id":"3","name_en":"Estadio BBVA","fifa_name":"Estadio Monterrey","city_en":"Monterrey (Guadalupe)","country_en":"Mexico","capacity":53500,"region":"Central"},{"id":"4","name_en":"AT&T Stadium","fifa_name":"Dallas Stadium","city_en":"Dallas (Arlington, Texas)","country_en":"United States","capacity":94000,"region":"Central"},{"id":"5","name_en":"NRG Stadium","fifa_name":"Houston Stadium","city_en":"Houston","country_en":"United States","capacity":72000,"region":"Central"},{"id":"6","name_en":"GEHA Field at Arrowhead Stadium","fifa_name":"Kansas City Stadium","city_en":"Kansas City","country_en":"United States","capacity":73000,"region":"Central"},{"id":"7","name_en":"Mercedes-Benz Stadium","fifa_name":"Atlanta Stadium","city_en":"Atlanta","country_en":"United States","capacity":75000,"region":"Eastern"},{"id":"8","name_en":"Hard Rock Stadium","fifa_name":"Miami Stadium","city_en":"Miami (Miami Gardens)","country_en":"United States","capacity":65000,"region":"Eastern"},{"id":"9","name_en":"Gillette Stadium","fifa_name":"Boston Stadium","city_en":"Boston (Foxborough)","country_en":"United States","capacity":65000,"region":"Eastern"},{"id":"10","name_en":"Lincoln Financial Field","fifa_name":"Philadelphia Stadium","city_en":"Philadelphia","country_en":"United States","capacity":69000,"region":"Eastern"},{"id":"11","name_en":"MetLife Stadium","fifa_name":"New York/New Jersey Stadium","city_en":"New York/New Jersey (East Rutherford)","country_en":"United States","capacity":82500,"region":"Eastern"},{"id":"12","name_en":"BMO Field","fifa_name":"Toronto Stadium","city_en":"Toronto","country_en":"Canada","capacity":45000,"region":"Eastern"},{"id":"13","name_en":"BC Place","fifa_name":"BC Place Vancouver","city_en":"Vancouver","country_en":"Canada","capacity":54000,"region":"Western"},{"id":"14","name_en":"Lumen Field","fifa_name":"Seattle Stadium","city_en":"Seattle","country_en":"United States","capacity":69000,"region":"Western"},{"id":"15","name_en":"Levi's Stadium","fifa_name":"San Francisco Bay Area Stadium","city_en":"San Francisco Bay Area (Santa Clara)","country_en":"United States","capacity":71000,"region":"Western"},{"id":"16","name_en":"SoFi Stadium","fifa_name":"Los Angeles Stadium","city_en":"Los Angeles (Inglewood)","country_en":"United States","capacity":70000,"region":"Western"}],"_sourceLabel":"WorldCup26.ir cached data snapshot","_sourceLabelKey":"sourceWorldCup26Snapshot","_schema":"worldcup26"};
+
+      const dom = {
+        timezoneSelect: document.getElementById('timezoneSelect'),
+        languageSelect: document.getElementById('languageSelect'),
+        detectedTimezonePill: document.getElementById('detectedTimezonePill'),
+        selectedTimezonePill: document.getElementById('selectedTimezonePill'),
+        timezoneAbbrevPill: document.getElementById('timezoneAbbrevPill'),
+        teamSearch: document.getElementById('teamSearch'),
+        groupFilter: document.getElementById('groupFilter'),
+        stadiumFilter: document.getElementById('stadiumFilter'),
+        stageFilter: document.getElementById('stageFilter'),
+        resetFilters: document.getElementById('resetFilters'),
+        manualRefresh: document.getElementById('manualRefresh'),
+        manualRefreshHero: document.getElementById('manualRefreshHero'),
+        refreshSpinner: document.getElementById('refreshSpinner'),
+        themeToggle: document.getElementById('themeToggle'),
+        dataSourceText: document.getElementById('dataSourceText'),
+        syncStatusText: document.getElementById('syncStatusText'),
+        lastUpdatedText: document.getElementById('lastUpdatedText'),
+        nextRefreshText: document.getElementById('nextRefreshText'),
+        statMatches: document.getElementById('statMatches'),
+        statMatchesSub: document.getElementById('statMatchesSub'),
+        statLive: document.getElementById('statLive'),
+        statStadiums: document.getElementById('statStadiums'),
+        statCapacitySub: document.getElementById('statCapacitySub'),
+        statAttendance: document.getElementById('statAttendance'),
+        matchCountPill: document.getElementById('matchCountPill'),
+        matchGroups: document.getElementById('matchGroups'),
+        stadiumGrid: document.getElementById('stadiumGrid'),
+        scheduleSection: document.getElementById('scheduleSection'),
+        stadiumsSection: document.getElementById('stadiumsSection'),
+        scheduleControls: document.getElementById('scheduleControls'),
+        navTabs: Array.from(document.querySelectorAll('.nav-tab[data-tab]')),
+        modalBackdrop: document.getElementById('stadiumModalBackdrop'),
+        modalName: document.getElementById('modalStadiumName'),
+        modalCity: document.getElementById('modalStadiumCity'),
+        modalBody: document.getElementById('modalBody'),
+        closeModal: document.getElementById('closeModal'),
+        toastContainer: document.getElementById('toastContainer')
+      };
+
+      function safeStorageGet(key) {
+        try {
+          return window.localStorage ? window.localStorage.getItem(key) : null;
+        } catch (error) {
+          // The Arena/mobile preview uses a sandboxed iframe where localStorage can be blocked.
+          // Never let that stop hydration of the timezone dropdown or schedule.
+          return null;
+        }
+      }
+
+      function safeStorageSet(key, value) {
+        try {
+          if (window.localStorage) window.localStorage.setItem(key, value);
+        } catch (error) {
+          // Non-critical preference persistence; ignore in restricted preview/browser contexts.
+        }
+      }
+
+      const LANGUAGE_META = {
+        en: { label: 'English', locale: 'en-US', htmlLang: 'en', dir: 'ltr' },
+        bn: { label: 'বাংলা', locale: 'bn-BD', htmlLang: 'bn', dir: 'ltr' },
+        hi: { label: 'हिन्दी', locale: 'hi-IN', htmlLang: 'hi', dir: 'ltr' },
+        ur: { label: 'اردو', locale: 'ur-PK', htmlLang: 'ur', dir: 'rtl' }
+      };
+
+      const I18N = {
+        en: {
+          pageTitle: 'World Cup Arena — Schedule & Stadium Guide',
+          brandSubtitle: 'Schedule + Stadium Guide',
+          ariaAppSections: 'Application sections',
+          navSchedule: 'Schedule',
+          navStadiums: 'Stadiums',
+          labelTimezone: 'Timezone',
+          labelLanguage: 'Language',
+          ariaPreviewTimezone: 'Preview schedule in timezone',
+          ariaChooseLanguage: 'Choose language',
+          ariaThemeToggle: 'Toggle light and dark mode',
+          themeSwitchLight: 'Switch to light mode',
+          themeSwitchDark: 'Switch to dark mode',
+          eyebrow: 'Live schedule intelligence',
+          heroTitlePrefix: 'Follow every kickoff in your',
+          heroTitleHighlight: 'local time.',
+          heroDesc: 'A modern Football World Cup dashboard with automatic timezone conversion, live-style score and attendance refreshes, searchable fixtures, and an interactive arena guide built for mobile, tablet, and desktop.',
+          viewSchedule: 'View Schedule',
+          exploreStadiums: 'Explore Stadiums',
+          refreshData: 'Refresh Data',
+          ariaTimezoneSummary: 'Timezone summary',
+          detectedTimezone: 'Detected timezone: {timezone}',
+          viewingTimezone: 'Viewing: {timezone}',
+          ariaLiveDataStatus: 'Live data status',
+          dataSource: 'Data source',
+          initializing: 'Initializing…',
+          ready: 'Ready',
+          online: 'Online',
+          syncing: 'Syncing',
+          lastUpdate: 'Last update',
+          never: 'Never',
+          nextRefresh: 'Next refresh',
+          ariaScheduleFilters: 'Schedule search and filters',
+          teamSearch: 'Team search',
+          searchPlaceholder: 'Search teams, groups, or match IDs…',
+          group: 'Group',
+          stadium: 'Stadium',
+          stage: 'Stage',
+          allGroups: 'All Groups',
+          allStadiums: 'All Stadiums',
+          allStages: 'All Stages',
+          reset: 'Reset',
+          sync: 'Sync',
+          ariaTournamentStats: 'Tournament statistics',
+          visibleFixtures: 'Visible fixtures',
+          readyToLoad: 'Ready to load',
+          totalFixturesInFeed: '{count} total fixtures in feed',
+          liveNow: 'Live now',
+          autoRefresh60: 'Auto-refreshing every 60 seconds',
+          stadiums: 'Stadiums',
+          capacityIntelligence: 'Capacity intelligence',
+          totalSeats: '{count} total seats',
+          avgAttendance: 'Avg. attendance',
+          updatedFromFeed: 'Updated from schedule feed',
+          scheduleTitle: 'Interactive Match Schedule',
+          scheduleDesc: 'Fixtures are grouped by localized date and tournament stage. Change the timezone in the sticky navigation to instantly preview kickoffs worldwide.',
+          matchCount: '{count} {unit}',
+          matchSingular: 'match',
+          matchPlural: 'matches',
+          fixtureSingular: 'fixture',
+          fixturePlural: 'fixtures',
+          noFixturesTitle: 'No fixtures match your filters.',
+          noFixturesDesc: 'Try clearing search terms or selecting a different group, stadium, or stage.',
+          stadiumGuideTitle: 'Stadium & Arena Guide',
+          stadiumGuideDesc: 'Explore capacity, pitch surface, expected crowd data, and a compact visual layout for every tournament venue.',
+          capacityCrowdFeed: 'Capacity + crowd feed',
+          responsiveVenueCards: 'Responsive venue cards',
+          date: 'Date',
+          localTime: 'Local time',
+          crowd: 'Crowd',
+          expected: '{count} expected',
+          attending: '{count} attending',
+          viewStadiumDetails: 'View Stadium Details',
+          capacity: 'Capacity',
+          pitch: 'Pitch',
+          roof: 'Roof',
+          opened: 'Opened',
+          openArenaGuide: 'Open Arena Guide',
+          noStadiumDataTitle: 'No stadium data yet.',
+          noStadiumDataDesc: 'Connect a schedule endpoint or refresh the feed.',
+          venueIntelligence: 'Venue intelligence',
+          venueDescription: '{stadium} is configured as a smart venue card in the feed. Attendance, expected spectators, match status, and kickoff time are rebound automatically whenever the API refreshes.',
+          stadiumWord: 'Stadium',
+          city: 'City',
+          totalSeatingCapacity: 'Total seating capacity',
+          currentExpectedCrowd: 'Current / expected crowd',
+          pitchFieldType: 'Pitch / field type',
+          selectedMatchCrowdFeed: 'Selected match crowd feed',
+          fixturesAtVenue: 'Fixtures at this venue',
+          noFixturesAssigned: 'No fixtures assigned.',
+          ariaCloseStadiumDetails: 'Close stadium details',
+          layoutAria: 'Graphical layout for {stadium}',
+          crowdLoad: '{stadium} • {percent}% crowd load',
+          liveStatus: 'Live {minute}',
+          fullTime: 'Full time',
+          upcoming: 'Upcoming',
+          sourceScheduleFeed: 'Schedule Data Feed',
+          sourceSampleFeed: 'Sample Schedule Feed',
+          sourceBackupFeed: 'Backup Sample Feed — live source unavailable',
+          sourceLiveFeed: 'Live Schedule Feed',
+          sourceSportsApi: 'Live sports API adapter',
+          sourceWorldCup26Live: 'WorldCup26.ir Live API',
+          sourceWorldCup26Snapshot: 'WorldCup26.ir cached data snapshot',
+          tzLocal: 'Local',
+          tzSelected: 'Selected',
+          tzDhaka: '+06 Dhaka',
+          tzGmt: 'GMT / UTC — Greenwich Mean Time',
+          tzEst: 'EST/ET — New York',
+          tzPt: 'PT — Los Angeles',
+          tzBst: 'BST/GMT — London',
+          tzCet: 'CET/CEST — Paris',
+          tzIctBkkVte: 'ICT — Bangkok/Vientiane',
+          tzIctVte: 'ICT — Vientiane',
+          tzJst: 'JST — Tokyo',
+          tzGst: 'GST — Dubai',
+          tzAet: 'AET — Sydney',
+          suggestedTimezones: 'Suggested timezones',
+          allGlobalTimezones: 'All global IANA timezones',
+          scheduleConverted: 'Schedule converted to {timezone}.',
+          latestSynced: 'Latest scores, statuses, and attendance data synced.',
+          loadError: 'Could not load schedule data: {message}',
+          toastTitle: 'World Cup Arena',
+          toastErrorTitle: 'Heads up',
+          valueLabels: {
+            'Group Stage': 'Group Stage',
+            'Round of 32': 'Round of 32',
+            'Round of 16': 'Round of 16',
+            'Quarter-finals': 'Quarter-finals',
+            'Semi-finals': 'Semi-finals',
+            'Final': 'Final',
+            'Third place': 'Third place',
+            'Tournament': 'Tournament',
+            'Knockout': 'Knockout',
+            'Natural grass': 'Natural grass',
+            'Hybrid grass': 'Hybrid grass',
+            'Artificial turf overlay': 'Artificial turf overlay',
+            'Hybrid grass over modular tray': 'Hybrid grass over modular tray',
+            'Natural grass tray': 'Natural grass tray',
+            'Open air': 'Open air',
+            'Partial canopy': 'Partial canopy',
+            'Translucent canopy': 'Translucent canopy',
+            'Retractable': 'Retractable',
+            'Open air canopy': 'Open air canopy'
+          }
+        },
+        bn: {
+          pageTitle: 'ওয়ার্ল্ড কাপ অ্যারেনা — সূচি ও স্টেডিয়াম গাইড',
+          brandSubtitle: 'সূচি + স্টেডিয়াম গাইড',
+          ariaAppSections: 'অ্যাপের বিভাগসমূহ',
+          navSchedule: 'সূচি',
+          navStadiums: 'স্টেডিয়াম',
+          labelTimezone: 'সময় অঞ্চল',
+          labelLanguage: 'ভাষা',
+          ariaPreviewTimezone: 'নির্বাচিত সময় অঞ্চলে সূচি দেখুন',
+          ariaChooseLanguage: 'ভাষা নির্বাচন করুন',
+          ariaThemeToggle: 'লাইট ও ডার্ক মোড পরিবর্তন করুন',
+          themeSwitchLight: 'লাইট মোডে যান',
+          themeSwitchDark: 'ডার্ক মোডে যান',
+          eyebrow: 'লাইভ সূচি ইন্টেলিজেন্স',
+          heroTitlePrefix: 'প্রতিটি কিকঅফ দেখুন আপনার',
+          heroTitleHighlight: 'স্থানীয় সময়ে।',
+          heroDesc: 'স্বয়ংক্রিয় সময় অঞ্চল রূপান্তর, লাইভ-স্টাইল স্কোর ও উপস্থিতি আপডেট, সার্চযোগ্য ফিক্সচার এবং মোবাইল, ট্যাবলেট ও ডেস্কটপের জন্য তৈরি ইন্টারঅ্যাকটিভ অ্যারেনা গাইডসহ একটি আধুনিক ফুটবল ওয়ার্ল্ড কাপ ড্যাশবোর্ড।',
+          viewSchedule: 'সূচি দেখুন',
+          exploreStadiums: 'স্টেডিয়াম দেখুন',
+          refreshData: 'ডেটা রিফ্রেশ',
+          ariaTimezoneSummary: 'সময় অঞ্চল সারাংশ',
+          detectedTimezone: 'সনাক্ত সময় অঞ্চল: {timezone}',
+          viewingTimezone: 'দেখানো হচ্ছে: {timezone}',
+          ariaLiveDataStatus: 'লাইভ ডেটা অবস্থা',
+          dataSource: 'ডেটা উৎস',
+          initializing: 'চালু হচ্ছে…',
+          ready: 'প্রস্তুত',
+          online: 'অনলাইন',
+          syncing: 'সিঙ্ক হচ্ছে',
+          lastUpdate: 'শেষ আপডেট',
+          never: 'এখনও নয়',
+          nextRefresh: 'পরবর্তী রিফ্রেশ',
+          ariaScheduleFilters: 'সূচি সার্চ ও ফিল্টার',
+          teamSearch: 'দল খুঁজুন',
+          searchPlaceholder: 'দল, গ্রুপ বা ম্যাচ আইডি খুঁজুন…',
+          group: 'গ্রুপ',
+          stadium: 'স্টেডিয়াম',
+          stage: 'পর্ব',
+          allGroups: 'সব গ্রুপ',
+          allStadiums: 'সব স্টেডিয়াম',
+          allStages: 'সব পর্ব',
+          reset: 'রিসেট',
+          sync: 'সিঙ্ক',
+          ariaTournamentStats: 'টুর্নামেন্ট পরিসংখ্যান',
+          visibleFixtures: 'দৃশ্যমান ফিক্সচার',
+          readyToLoad: 'লোডের জন্য প্রস্তুত',
+          totalFixturesInFeed: 'ফিডে মোট {count}টি ফিক্সচার',
+          liveNow: 'এখন লাইভ',
+          autoRefresh60: 'প্রতি ৬০ সেকেন্ডে স্বয়ংক্রিয় রিফ্রেশ',
+          stadiums: 'স্টেডিয়াম',
+          capacityIntelligence: 'ধারণক্ষমতা তথ্য',
+          totalSeats: 'মোট {count}টি আসন',
+          avgAttendance: 'গড় উপস্থিতি',
+          updatedFromFeed: 'সূচি ফিড থেকে আপডেট',
+          scheduleTitle: 'ইন্টারঅ্যাকটিভ ম্যাচ সূচি',
+          scheduleDesc: 'ফিক্সচারগুলো স্থানীয় তারিখ ও টুর্নামেন্ট পর্ব অনুযায়ী সাজানো। স্টিকি নেভিগেশনে সময় অঞ্চল বদলে বিশ্বজুড়ে কিকঅফ সময় সঙ্গে সঙ্গে দেখুন।',
+          matchCount: '{count}টি {unit}',
+          matchSingular: 'ম্যাচ',
+          matchPlural: 'ম্যাচ',
+          fixtureSingular: 'ফিক্সচার',
+          fixturePlural: 'ফিক্সচার',
+          noFixturesTitle: 'আপনার ফিল্টারের সাথে কোনো ফিক্সচার মেলেনি।',
+          noFixturesDesc: 'সার্চ শব্দ মুছে ফেলুন অথবা অন্য গ্রুপ, স্টেডিয়াম বা পর্ব নির্বাচন করুন।',
+          stadiumGuideTitle: 'স্টেডিয়াম ও অ্যারেনা গাইড',
+          stadiumGuideDesc: 'প্রতিটি ভেন্যুর ধারণক্ষমতা, পিচ সারফেস, প্রত্যাশিত দর্শক এবং কমপ্যাক্ট ভিজ্যুয়াল লেআউট দেখুন।',
+          capacityCrowdFeed: 'ধারণক্ষমতা + দর্শক ফিড',
+          responsiveVenueCards: 'রেসপন্সিভ ভেন্যু কার্ড',
+          date: 'তারিখ',
+          localTime: 'স্থানীয় সময়',
+          crowd: 'দর্শক',
+          expected: '{count} প্রত্যাশিত',
+          attending: '{count} উপস্থিত',
+          viewStadiumDetails: 'স্টেডিয়াম বিস্তারিত দেখুন',
+          capacity: 'ধারণক্ষমতা',
+          pitch: 'পিচ',
+          roof: 'ছাদ',
+          opened: 'উদ্বোধন',
+          openArenaGuide: 'অ্যারেনা গাইড খুলুন',
+          noStadiumDataTitle: 'এখনও কোনো স্টেডিয়াম ডেটা নেই।',
+          noStadiumDataDesc: 'সূচি endpoint যুক্ত করুন অথবা ফিড রিফ্রেশ করুন।',
+          venueIntelligence: 'ভেন্যু তথ্য',
+          venueDescription: '{stadium} ফিডে স্মার্ট ভেন্যু কার্ড হিসেবে কনফিগার করা আছে। API রিফ্রেশ হলেই উপস্থিতি, প্রত্যাশিত দর্শক, ম্যাচ স্ট্যাটাস ও কিকঅফ সময় স্বয়ংক্রিয়ভাবে আপডেট হয়।',
+          stadiumWord: 'স্টেডিয়াম',
+          city: 'শহর',
+          totalSeatingCapacity: 'মোট আসন ধারণক্ষমতা',
+          currentExpectedCrowd: 'বর্তমান / প্রত্যাশিত দর্শক',
+          pitchFieldType: 'পিচ / মাঠের ধরন',
+          selectedMatchCrowdFeed: 'নির্বাচিত ম্যাচের দর্শক ফিড',
+          fixturesAtVenue: 'এই ভেন্যুর ফিক্সচার',
+          noFixturesAssigned: 'কোনো ফিক্সচার নির্ধারিত নেই।',
+          ariaCloseStadiumDetails: 'স্টেডিয়াম বিস্তারিত বন্ধ করুন',
+          layoutAria: '{stadium} এর গ্রাফিক্যাল লেআউট',
+          crowdLoad: '{stadium} • {percent}% দর্শক লোড',
+          liveStatus: 'লাইভ {minute}',
+          fullTime: 'ফুল টাইম',
+          upcoming: 'আসন্ন',
+          sourceScheduleFeed: 'সূচি ডেটা ফিড',
+          sourceSampleFeed: 'নমুনা সূচি ফিড',
+          sourceBackupFeed: 'ব্যাকআপ নমুনা ফিড — লাইভ উৎস পাওয়া যায়নি',
+          sourceLiveFeed: 'লাইভ সূচি ফিড',
+          sourceSportsApi: 'লাইভ স্পোর্টস API অ্যাডাপ্টার',
+          sourceWorldCup26Live: 'WorldCup26.ir লাইভ API',
+          sourceWorldCup26Snapshot: 'WorldCup26.ir ক্যাশড ডেটা স্ন্যাপশট',
+          tzLocal: 'স্থানীয়',
+          tzSelected: 'নির্বাচিত',
+          tzDhaka: '+06 Dhaka',
+          tzGmt: 'GMT / UTC — গ্রিনিচ মিন টাইম',
+          tzEst: 'EST/ET — নিউ ইয়র্ক',
+          tzPt: 'PT — লস অ্যাঞ্জেলেস',
+          tzBst: 'BST/GMT — লন্ডন',
+          tzCet: 'CET/CEST — প্যারিস',
+          tzIctBkkVte: 'ICT — ব্যাংকক/ভিয়েনতিয়েন',
+          tzIctVte: 'ICT — ভিয়েনতিয়েন',
+          tzJst: 'JST — টোকিও',
+          tzGst: 'GST — দুবাই',
+          tzAet: 'AET — সিডনি',
+          suggestedTimezones: 'প্রস্তাবিত সময় অঞ্চল',
+          allGlobalTimezones: 'সব গ্লোবাল IANA সময় অঞ্চল',
+          scheduleConverted: 'সূচি {timezone} সময় অঞ্চলে রূপান্তরিত হয়েছে।',
+          latestSynced: 'সর্বশেষ স্কোর, স্ট্যাটাস ও উপস্থিতি ডেটা সিঙ্ক হয়েছে।',
+          loadError: 'সূচি ডেটা লোড করা যায়নি: {message}',
+          toastTitle: 'ওয়ার্ল্ড কাপ অ্যারেনা',
+          toastErrorTitle: 'দৃষ্টি আকর্ষণ',
+          valueLabels: {
+            'Group Stage': 'গ্রুপ পর্ব',
+            'Round of 32': 'রাউন্ড অব ৩২',
+            'Round of 16': 'রাউন্ড অব ১৬',
+            'Quarter-finals': 'কোয়ার্টার ফাইনাল',
+            'Semi-finals': 'সেমি-ফাইনাল',
+            'Final': 'ফাইনাল',
+            'Third place': 'তৃতীয় স্থান',
+            'Tournament': 'টুর্নামেন্ট',
+            'Knockout': 'নকআউট',
+            'Natural grass': 'প্রাকৃতিক ঘাস',
+            'Hybrid grass': 'হাইব্রিড ঘাস',
+            'Artificial turf overlay': 'কৃত্রিম টার্ফ ওভারলে',
+            'Hybrid grass over modular tray': 'মডুলার ট্রের উপর হাইব্রিড ঘাস',
+            'Natural grass tray': 'প্রাকৃতিক ঘাসের ট্রে',
+            'Open air': 'ওপেন এয়ার',
+            'Partial canopy': 'আংশিক ক্যানোপি',
+            'Translucent canopy': 'স্বচ্ছ ক্যানোপি',
+            'Retractable': 'রিট্র্যাক্টেবল',
+            'Open air canopy': 'ওপেন এয়ার ক্যানোপি'
+          }
+        },
+        hi: {
+          pageTitle: 'वर्ल्ड कप एरीना — शेड्यूल और स्टेडियम गाइड',
+          brandSubtitle: 'शेड्यूल + स्टेडियम गाइड',
+          ariaAppSections: 'ऐप सेक्शन',
+          navSchedule: 'शेड्यूल',
+          navStadiums: 'स्टेडियम',
+          labelTimezone: 'समय क्षेत्र',
+          labelLanguage: 'भाषा',
+          ariaPreviewTimezone: 'चुने हुए समय क्षेत्र में शेड्यूल देखें',
+          ariaChooseLanguage: 'भाषा चुनें',
+          ariaThemeToggle: 'लाइट और डार्क मोड बदलें',
+          themeSwitchLight: 'लाइट मोड में जाएँ',
+          themeSwitchDark: 'डार्क मोड में जाएँ',
+          eyebrow: 'लाइव शेड्यूल इंटेलिजेंस',
+          heroTitlePrefix: 'हर किकऑफ देखें अपने',
+          heroTitleHighlight: 'स्थानीय समय में।',
+          heroDesc: 'ऑटोमैटिक समय क्षेत्र रूपांतरण, लाइव-स्टाइल स्कोर और उपस्थिति अपडेट, खोज योग्य फिक्स्चर और मोबाइल, टैबलेट व डेस्कटॉप के लिए बनाए गए इंटरैक्टिव एरीना गाइड के साथ एक आधुनिक फुटबॉल वर्ल्ड कप डैशबोर्ड।',
+          viewSchedule: 'शेड्यूल देखें',
+          exploreStadiums: 'स्टेडियम देखें',
+          refreshData: 'डेटा रिफ्रेश करें',
+          ariaTimezoneSummary: 'समय क्षेत्र सारांश',
+          detectedTimezone: 'पहचाना गया समय क्षेत्र: {timezone}',
+          viewingTimezone: 'देख रहे हैं: {timezone}',
+          ariaLiveDataStatus: 'लाइव डेटा स्थिति',
+          dataSource: 'डेटा स्रोत',
+          initializing: 'शुरू हो रहा है…',
+          ready: 'तैयार',
+          online: 'ऑनलाइन',
+          syncing: 'सिंक हो रहा है',
+          lastUpdate: 'अंतिम अपडेट',
+          never: 'अभी नहीं',
+          nextRefresh: 'अगला रिफ्रेश',
+          ariaScheduleFilters: 'शेड्यूल खोज और फ़िल्टर',
+          teamSearch: 'टीम खोजें',
+          searchPlaceholder: 'टीम, ग्रुप या मैच ID खोजें…',
+          group: 'ग्रुप',
+          stadium: 'स्टेडियम',
+          stage: 'चरण',
+          allGroups: 'सभी ग्रुप',
+          allStadiums: 'सभी स्टेडियम',
+          allStages: 'सभी चरण',
+          reset: 'रीसेट',
+          sync: 'सिंक',
+          ariaTournamentStats: 'टूर्नामेंट आँकड़े',
+          visibleFixtures: 'दिखने वाले फिक्स्चर',
+          readyToLoad: 'लोड के लिए तैयार',
+          totalFixturesInFeed: 'फ़ीड में कुल {count} फिक्स्चर',
+          liveNow: 'अभी लाइव',
+          autoRefresh60: 'हर 60 सेकंड में ऑटो रिफ्रेश',
+          stadiums: 'स्टेडियम',
+          capacityIntelligence: 'क्षमता जानकारी',
+          totalSeats: 'कुल {count} सीटें',
+          avgAttendance: 'औसत उपस्थिति',
+          updatedFromFeed: 'शेड्यूल फ़ीड से अपडेट',
+          scheduleTitle: 'इंटरैक्टिव मैच शेड्यूल',
+          scheduleDesc: 'फिक्स्चर स्थानीय तारीख और टूर्नामेंट चरण के अनुसार समूहित हैं। स्टिकी नेविगेशन में समय क्षेत्र बदलकर दुनिया भर के किकऑफ तुरंत देखें।',
+          matchCount: '{count} {unit}',
+          matchSingular: 'मैच',
+          matchPlural: 'मैच',
+          fixtureSingular: 'फिक्स्चर',
+          fixturePlural: 'फिक्स्चर',
+          noFixturesTitle: 'आपके फ़िल्टर से कोई फिक्स्चर मेल नहीं खाता।',
+          noFixturesDesc: 'खोज शब्द साफ़ करें या कोई दूसरा ग्रुप, स्टेडियम या चरण चुनें।',
+          stadiumGuideTitle: 'स्टेडियम और एरीना गाइड',
+          stadiumGuideDesc: 'हर वेन्यू की क्षमता, पिच सतह, अपेक्षित दर्शक डेटा और कॉम्पैक्ट विजुअल लेआउट देखें।',
+          capacityCrowdFeed: 'क्षमता + दर्शक फ़ीड',
+          responsiveVenueCards: 'रेस्पॉन्सिव वेन्यू कार्ड',
+          date: 'तारीख',
+          localTime: 'स्थानीय समय',
+          crowd: 'दर्शक',
+          expected: '{count} अपेक्षित',
+          attending: '{count} उपस्थित',
+          viewStadiumDetails: 'स्टेडियम विवरण देखें',
+          capacity: 'क्षमता',
+          pitch: 'पिच',
+          roof: 'छत',
+          opened: 'खुला',
+          openArenaGuide: 'एरीना गाइड खोलें',
+          noStadiumDataTitle: 'अभी कोई स्टेडियम डेटा नहीं है।',
+          noStadiumDataDesc: 'शेड्यूल endpoint जोड़ें या फ़ीड रिफ्रेश करें।',
+          venueIntelligence: 'वेन्यू जानकारी',
+          venueDescription: '{stadium} फ़ीड में स्मार्ट वेन्यू कार्ड के रूप में कॉन्फ़िगर है। API रिफ्रेश होते ही उपस्थिति, अपेक्षित दर्शक, मैच स्थिति और किकऑफ समय अपने आप अपडेट होते हैं।',
+          stadiumWord: 'स्टेडियम',
+          city: 'शहर',
+          totalSeatingCapacity: 'कुल बैठने की क्षमता',
+          currentExpectedCrowd: 'वर्तमान / अपेक्षित दर्शक',
+          pitchFieldType: 'पिच / मैदान प्रकार',
+          selectedMatchCrowdFeed: 'चुने गए मैच का दर्शक फ़ीड',
+          fixturesAtVenue: 'इस वेन्यू के फिक्स्चर',
+          noFixturesAssigned: 'कोई फिक्स्चर निर्धारित नहीं।',
+          ariaCloseStadiumDetails: 'स्टेडियम विवरण बंद करें',
+          layoutAria: '{stadium} का ग्राफिकल लेआउट',
+          crowdLoad: '{stadium} • {percent}% दर्शक लोड',
+          liveStatus: 'लाइव {minute}',
+          fullTime: 'फुल टाइम',
+          upcoming: 'आगामी',
+          sourceScheduleFeed: 'शेड्यूल डेटा फ़ीड',
+          sourceSampleFeed: 'नमूना शेड्यूल फ़ीड',
+          sourceBackupFeed: 'बैकअप नमूना फ़ीड — लाइव स्रोत उपलब्ध नहीं',
+          sourceLiveFeed: 'लाइव शेड्यूल फ़ीड',
+          sourceSportsApi: 'लाइव स्पोर्ट्स API अडैप्टर',
+          sourceWorldCup26Live: 'WorldCup26.ir लाइव API',
+          sourceWorldCup26Snapshot: 'WorldCup26.ir कैश्ड डेटा स्नैपशॉट',
+          tzLocal: 'स्थानीय',
+          tzSelected: 'चयनित',
+          tzDhaka: '+06 Dhaka',
+          tzGmt: 'GMT / UTC — ग्रीनविच मीन टाइम',
+          tzEst: 'EST/ET — न्यूयॉर्क',
+          tzPt: 'PT — लॉस एंजेलिस',
+          tzBst: 'BST/GMT — लंदन',
+          tzCet: 'CET/CEST — पेरिस',
+          tzIctBkkVte: 'ICT — बैंकॉक/वियनतियाने',
+          tzIctVte: 'ICT — वियनतियाने',
+          tzJst: 'JST — टोक्यो',
+          tzGst: 'GST — दुबई',
+          tzAet: 'AET — सिडनी',
+          suggestedTimezones: 'सुझाए गए समय क्षेत्र',
+          allGlobalTimezones: 'सभी वैश्विक IANA समय क्षेत्र',
+          scheduleConverted: 'शेड्यूल {timezone} समय क्षेत्र में बदल गया।',
+          latestSynced: 'नवीनतम स्कोर, स्थिति और उपस्थिति डेटा सिंक हो गया।',
+          loadError: 'शेड्यूल डेटा लोड नहीं हो सका: {message}',
+          toastTitle: 'वर्ल्ड कप एरीना',
+          toastErrorTitle: 'ध्यान दें',
+          valueLabels: {
+            'Group Stage': 'ग्रुप चरण',
+            'Round of 32': 'राउंड ऑफ 32',
+            'Round of 16': 'राउंड ऑफ 16',
+            'Quarter-finals': 'क्वार्टर फाइनल',
+            'Semi-finals': 'सेमी-फाइनल',
+            'Final': 'फाइनल',
+            'Third place': 'तीसरा स्थान',
+            'Tournament': 'टूर्नामेंट',
+            'Knockout': 'नॉकआउट',
+            'Natural grass': 'प्राकृतिक घास',
+            'Hybrid grass': 'हाइब्रिड घास',
+            'Artificial turf overlay': 'कृत्रिम टर्फ ओवरले',
+            'Hybrid grass over modular tray': 'मॉड्यूलर ट्रे पर हाइब्रिड घास',
+            'Natural grass tray': 'प्राकृतिक घास ट्रे',
+            'Open air': 'ओपन एयर',
+            'Partial canopy': 'आंशिक कैनोपी',
+            'Translucent canopy': 'पारदर्शी कैनोपी',
+            'Retractable': 'रिट्रैक्टेबल',
+            'Open air canopy': 'ओपन एयर कैनोपी'
+          }
+        },
+        ur: {
+          pageTitle: 'ورلڈ کپ ایرینا — شیڈول اور اسٹیڈیم گائیڈ',
+          brandSubtitle: 'شیڈول + اسٹیڈیم گائیڈ',
+          ariaAppSections: 'ایپ سیکشنز',
+          navSchedule: 'شیڈول',
+          navStadiums: 'اسٹیڈیمز',
+          labelTimezone: 'ٹائم زون',
+          labelLanguage: 'زبان',
+          ariaPreviewTimezone: 'منتخب ٹائم زون میں شیڈول دیکھیں',
+          ariaChooseLanguage: 'زبان منتخب کریں',
+          ariaThemeToggle: 'لائٹ اور ڈارک موڈ تبدیل کریں',
+          themeSwitchLight: 'لائٹ موڈ پر جائیں',
+          themeSwitchDark: 'ڈارک موڈ پر جائیں',
+          eyebrow: 'لائیو شیڈول انٹیلیجنس',
+          heroTitlePrefix: 'ہر کِک آف دیکھیں اپنے',
+          heroTitleHighlight: 'مقامی وقت میں۔',
+          heroDesc: 'خودکار ٹائم زون تبدیلی، لائیو طرز کے اسکور اور حاضری اپ ڈیٹس، قابلِ تلاش فکسچرز، اور موبائل، ٹیبلٹ و ڈیسک ٹاپ کے لیے بنایا گیا انٹرایکٹو ایرینا گائیڈ کے ساتھ ایک جدید فٹبال ورلڈ کپ ڈیش بورڈ۔',
+          viewSchedule: 'شیڈول دیکھیں',
+          exploreStadiums: 'اسٹیڈیمز دیکھیں',
+          refreshData: 'ڈیٹا ریفریش کریں',
+          ariaTimezoneSummary: 'ٹائم زون خلاصہ',
+          detectedTimezone: 'شناخت شدہ ٹائم زون: {timezone}',
+          viewingTimezone: 'دکھایا جا رہا ہے: {timezone}',
+          ariaLiveDataStatus: 'لائیو ڈیٹا اسٹیٹس',
+          dataSource: 'ڈیٹا سورس',
+          initializing: 'شروع ہو رہا ہے…',
+          ready: 'تیار',
+          online: 'آن لائن',
+          syncing: 'سنک ہو رہا ہے',
+          lastUpdate: 'آخری اپ ڈیٹ',
+          never: 'ابھی نہیں',
+          nextRefresh: 'اگلا ریفریش',
+          ariaScheduleFilters: 'شیڈول تلاش اور فلٹرز',
+          teamSearch: 'ٹیم تلاش کریں',
+          searchPlaceholder: 'ٹیم، گروپ یا میچ ID تلاش کریں…',
+          group: 'گروپ',
+          stadium: 'اسٹیڈیم',
+          stage: 'مرحلہ',
+          allGroups: 'تمام گروپس',
+          allStadiums: 'تمام اسٹیڈیمز',
+          allStages: 'تمام مراحل',
+          reset: 'ری سیٹ',
+          sync: 'سنک',
+          ariaTournamentStats: 'ٹورنامنٹ اعداد و شمار',
+          visibleFixtures: 'نظر آنے والے فکسچرز',
+          readyToLoad: 'لوڈ کے لیے تیار',
+          totalFixturesInFeed: 'فیڈ میں کل {count} فکسچرز',
+          liveNow: 'ابھی لائیو',
+          autoRefresh60: 'ہر 60 سیکنڈ بعد خودکار ریفریش',
+          stadiums: 'اسٹیڈیمز',
+          capacityIntelligence: 'گنجائش کی معلومات',
+          totalSeats: 'کل {count} نشستیں',
+          avgAttendance: 'اوسط حاضری',
+          updatedFromFeed: 'شیڈول فیڈ سے اپ ڈیٹ',
+          scheduleTitle: 'انٹرایکٹو میچ شیڈول',
+          scheduleDesc: 'فکسچرز مقامی تاریخ اور ٹورنامنٹ مرحلے کے مطابق گروپ کیے گئے ہیں۔ اسٹکی نیویگیشن میں ٹائم زون بدل کر دنیا بھر کے کِک آف فوراً دیکھیں۔',
+          matchCount: '{count} {unit}',
+          matchSingular: 'میچ',
+          matchPlural: 'میچز',
+          fixtureSingular: 'فکسچر',
+          fixturePlural: 'فکسچرز',
+          noFixturesTitle: 'آپ کے فلٹرز سے کوئی فکسچر نہیں ملا۔',
+          noFixturesDesc: 'تلاش صاف کریں یا کوئی دوسرا گروپ، اسٹیڈیم یا مرحلہ منتخب کریں۔',
+          stadiumGuideTitle: 'اسٹیڈیم اور ایرینا گائیڈ',
+          stadiumGuideDesc: 'ہر وینیو کی گنجائش، پچ سطح، متوقع تماشائی ڈیٹا اور کمپیکٹ بصری لے آؤٹ دیکھیں۔',
+          capacityCrowdFeed: 'گنجائش + تماشائی فیڈ',
+          responsiveVenueCards: 'ریسپانسیو وینیو کارڈز',
+          date: 'تاریخ',
+          localTime: 'مقامی وقت',
+          crowd: 'تماشائی',
+          expected: '{count} متوقع',
+          attending: '{count} موجود',
+          viewStadiumDetails: 'اسٹیڈیم تفصیلات دیکھیں',
+          capacity: 'گنجائش',
+          pitch: 'پچ',
+          roof: 'چھت',
+          opened: 'افتتاح',
+          openArenaGuide: 'ایرینا گائیڈ کھولیں',
+          noStadiumDataTitle: 'ابھی کوئی اسٹیڈیم ڈیٹا نہیں۔',
+          noStadiumDataDesc: 'شیڈول endpoint جوڑیں یا فیڈ ریفریش کریں۔',
+          venueIntelligence: 'وینیو معلومات',
+          venueDescription: '{stadium} فیڈ میں اسمارٹ وینیو کارڈ کے طور پر کنفیگر ہے۔ API ریفریش ہوتے ہی حاضری، متوقع تماشائی، میچ اسٹیٹس اور کِک آف وقت خود بخود اپ ڈیٹ ہوتے ہیں۔',
+          stadiumWord: 'اسٹیڈیم',
+          city: 'شہر',
+          totalSeatingCapacity: 'کل نشستوں کی گنجائش',
+          currentExpectedCrowd: 'موجودہ / متوقع تماشائی',
+          pitchFieldType: 'پچ / میدان کی قسم',
+          selectedMatchCrowdFeed: 'منتخب میچ تماشائی فیڈ',
+          fixturesAtVenue: 'اس وینیو کے فکسچرز',
+          noFixturesAssigned: 'کوئی فکسچر مقرر نہیں۔',
+          ariaCloseStadiumDetails: 'اسٹیڈیم تفصیلات بند کریں',
+          layoutAria: '{stadium} کا گرافیکل لے آؤٹ',
+          crowdLoad: '{stadium} • {percent}% تماشائی لوڈ',
+          liveStatus: 'لائیو {minute}',
+          fullTime: 'فل ٹائم',
+          upcoming: 'آنے والا',
+          sourceScheduleFeed: 'شیڈول ڈیٹا فیڈ',
+          sourceSampleFeed: 'نمونہ شیڈول فیڈ',
+          sourceBackupFeed: 'بیک اپ نمونہ فیڈ — لائیو سورس دستیاب نہیں',
+          sourceLiveFeed: 'لائیو شیڈول فیڈ',
+          sourceSportsApi: 'لائیو اسپورٹس API اڈاپٹر',
+          sourceWorldCup26Live: 'WorldCup26.ir لائیو API',
+          sourceWorldCup26Snapshot: 'WorldCup26.ir کیشڈ ڈیٹا اسنیپ شاٹ',
+          tzLocal: 'مقامی',
+          tzSelected: 'منتخب',
+          tzDhaka: '+06 Dhaka',
+          tzGmt: 'GMT / UTC — گرین وچ مین ٹائم',
+          tzEst: 'EST/ET — نیو یارک',
+          tzPt: 'PT — لاس اینجلس',
+          tzBst: 'BST/GMT — لندن',
+          tzCet: 'CET/CEST — پیرس',
+          tzIctBkkVte: 'ICT — بنکاک/وینتیان',
+          tzIctVte: 'ICT — وینتیان',
+          tzJst: 'JST — ٹوکیو',
+          tzGst: 'GST — دبئی',
+          tzAet: 'AET — سڈنی',
+          suggestedTimezones: 'تجویز کردہ ٹائم زونز',
+          allGlobalTimezones: 'تمام عالمی IANA ٹائم زونز',
+          scheduleConverted: 'شیڈول {timezone} ٹائم زون میں تبدیل ہو گیا۔',
+          latestSynced: 'تازہ ترین اسکور، اسٹیٹس اور حاضری ڈیٹا سنک ہو گیا۔',
+          loadError: 'شیڈول ڈیٹا لوڈ نہیں ہو سکا: {message}',
+          toastTitle: 'ورلڈ کپ ایرینا',
+          toastErrorTitle: 'توجہ دیں',
+          valueLabels: {
+            'Group Stage': 'گروپ مرحلہ',
+            'Round of 32': 'راؤنڈ آف 32',
+            'Round of 16': 'راؤنڈ آف 16',
+            'Quarter-finals': 'کوارٹر فائنل',
+            'Semi-finals': 'سیمی فائنل',
+            'Final': 'فائنل',
+            'Third place': 'تیسری پوزیشن',
+            'Tournament': 'ٹورنامنٹ',
+            'Knockout': 'ناک آؤٹ',
+            'Natural grass': 'قدرتی گھاس',
+            'Hybrid grass': 'ہائبرڈ گھاس',
+            'Artificial turf overlay': 'مصنوعی ٹرف اوورلے',
+            'Hybrid grass over modular tray': 'ماڈیولر ٹرے پر ہائبرڈ گھاس',
+            'Natural grass tray': 'قدرتی گھاس ٹرے',
+            'Open air': 'اوپن ایئر',
+            'Partial canopy': 'جزوی کینوپی',
+            'Translucent canopy': 'شفاف کینوپی',
+            'Retractable': 'ریٹریکٹ ایبل',
+            'Open air canopy': 'اوپن ایئر کینوپی'
+          }
+        }
+      };
+
+      const state = {
+        detectedTimezone: detectTimezone(),
+        timezone: safeStorageGet(CONFIG.STORAGE_KEYS.timezone) || CONFIG.DEFAULT_TIMEZONE,
+        language: safeStorageGet(CONFIG.STORAGE_KEYS.language) || detectLanguage(),
+        theme: safeStorageGet(CONFIG.STORAGE_KEYS.theme) || 'dark',
+        activeTab: 'schedule',
+        matches: [],
+        stadiums: [],
+        dataSource: 'Schedule Data Feed',
+        dataSourceKey: 'sourceScheduleFeed',
+        isLoading: false,
+        lastUpdated: null,
+        nextRefreshAt: null,
+        filters: {
+          search: '',
+          group: 'all',
+          stadium: 'all',
+          stage: 'all'
+        },
+        pollTimer: null,
+        clockTimer: null
+      };
+
+      const TEAM_COLORS = {
+        ARG: ['#65AFFF', '#F7FBFF'], AUS: ['#FFCD00', '#00843D'], BEL: ['#ED2939', '#000000'], BRA: ['#009B3A', '#FFDF00'],
+        CAN: ['#FF0000', '#FFFFFF'], CRO: ['#D80000', '#FFFFFF'], ENG: ['#FFFFFF', '#C8102E'], ESP: ['#AA151B', '#F1BF00'],
+        FRA: ['#0055A4', '#EF4135'], GER: ['#000000', '#DD0000'], GHA: ['#006B3F', '#FCD116'], ITA: ['#008C45', '#F4F5F0'],
+        JPN: ['#FFFFFF', '#BC002D'], KOR: ['#CD2E3A', '#0047A0'], MAR: ['#C1272D', '#006233'], MEX: ['#006847', '#CE1126'],
+        NED: ['#FF7F00', '#21468B'], POR: ['#006600', '#FF0000'], SEN: ['#00853F', '#FDEF42'], USA: ['#3C3B6E', '#B22234'],
+        URU: ['#75AADB', '#FFFFFF']
+      };
+
+      init();
+
+      function init() {
+        applyLanguage(state.language, { persist: false, rerender: false });
+        applyTheme(state.theme);
+        buildTimezoneSelect();
+        bindEvents();
+        applyTranslations();
+        renderTimezonePills();
+        loadData({ showToast: false });
+        state.pollTimer = window.setInterval(() => loadData({ background: true }), CONFIG.POLL_INTERVAL_MS);
+        state.clockTimer = window.setInterval(() => {
+          renderRefreshCountdown();
+          renderLiveRelativeTimes();
+        }, 1_000);
+      }
+
+      function bindEvents() {
+        dom.timezoneSelect.addEventListener('change', event => {
+          state.timezone = event.target.value;
+          safeStorageSet(CONFIG.STORAGE_KEYS.timezone, state.timezone);
+          renderTimezonePills();
+          renderAll();
+          showToast(t('scheduleConverted', { timezone: friendlyTimezoneLabel(state.timezone) }));
+        });
+
+        dom.languageSelect.addEventListener('change', event => {
+          applyLanguage(event.target.value, { persist: true, rerender: true });
+        });
+
+        dom.teamSearch.addEventListener('input', event => {
+          state.filters.search = event.target.value.trim().toLowerCase();
+          renderSchedule();
+        });
+
+        dom.groupFilter.addEventListener('change', event => {
+          state.filters.group = event.target.value;
+          renderSchedule();
+        });
+
+        dom.stadiumFilter.addEventListener('change', event => {
+          state.filters.stadium = event.target.value;
+          renderSchedule();
+        });
+
+        dom.stageFilter.addEventListener('change', event => {
+          state.filters.stage = event.target.value;
+          renderSchedule();
+        });
+
+        dom.resetFilters.addEventListener('click', () => {
+          state.filters = { search: '', group: 'all', stadium: 'all', stage: 'all' };
+          dom.teamSearch.value = '';
+          dom.groupFilter.value = 'all';
+          dom.stadiumFilter.value = 'all';
+          dom.stageFilter.value = 'all';
+          renderSchedule();
+        });
+
+        dom.manualRefresh.addEventListener('click', () => loadData({ showToast: true }));
+        dom.manualRefreshHero.addEventListener('click', () => loadData({ showToast: true }));
+
+        dom.themeToggle.addEventListener('click', () => {
+          state.theme = state.theme === 'dark' ? 'light' : 'dark';
+          safeStorageSet(CONFIG.STORAGE_KEYS.theme, state.theme);
+          applyTheme(state.theme);
+        });
+
+        document.addEventListener('click', event => {
+          const tabButton = event.target.closest('[data-tab]');
+          if (tabButton) {
+            setActiveTab(tabButton.dataset.tab);
+          }
+
+          const stadiumTrigger = event.target.closest('[data-open-stadium]');
+          if (stadiumTrigger) {
+            openStadiumModal(stadiumTrigger.dataset.stadiumId, stadiumTrigger.dataset.matchId || null);
+          }
+        });
+
+        dom.closeModal.addEventListener('click', closeModal);
+        dom.modalBackdrop.addEventListener('click', event => {
+          if (event.target === dom.modalBackdrop) closeModal();
+        });
+        document.addEventListener('keydown', event => {
+          if (event.key === 'Escape' && dom.modalBackdrop.classList.contains('open')) closeModal();
+        });
+      }
+
+      async function loadData({ showToast = false, background = false } = {}) {
+        if (state.isLoading) return;
+        state.isLoading = true;
+        renderLoadingState();
+
+        try {
+          const payload = await fetchWorldCupData();
+          const normalized = normalizeWorldCupPayload(payload);
+          state.matches = normalized.matches;
+          state.stadiums = normalized.stadiums;
+          state.dataSource = normalized.sourceLabel;
+          state.dataSourceKey = normalized.sourceKey;
+          state.lastUpdated = new Date();
+          state.nextRefreshAt = Date.now() + CONFIG.POLL_INTERVAL_MS;
+
+          populateFilters();
+          renderAll();
+          if (showToast) showToastMessage(t('latestSynced'));
+        } catch (error) {
+          console.error(error);
+          showToastMessage(t('loadError', { message: error.message }), 'error');
+          if (!state.matches.length) {
+            const fallback = normalizeWorldCupPayload(await fetchMockWorldCupData({ reason: 'fallback-after-error' }));
+            state.matches = fallback.matches;
+            state.stadiums = fallback.stadiums;
+            state.dataSource = fallback.sourceLabel;
+            state.dataSourceKey = fallback.sourceKey;
+            state.lastUpdated = new Date();
+            state.nextRefreshAt = Date.now() + CONFIG.POLL_INTERVAL_MS;
+            populateFilters();
+            renderAll();
+          }
+        } finally {
+          state.isLoading = false;
+          renderLoadingState();
+          if (background) renderRefreshCountdown();
+        }
+      }
+
+      async function fetchWorldCupData() {
+        if (CONFIG.DATA_ENDPOINT) {
+          try {
+            return await fetchJsonWithTimeout(CONFIG.DATA_ENDPOINT, CONFIG.REQUEST_TIMEOUT_MS);
+          } catch (error) {
+            console.warn('Custom endpoint unavailable; trying WorldCup26 live API.', error);
+          }
+        }
+
+        try {
+          return await fetchRealWorldCupApiData();
+        } catch (error) {
+          console.warn('WorldCup26 live API unavailable; using cached real-data snapshot.', error);
+          return fetchMockWorldCupData({ reason: 'endpoint-unavailable' });
+        }
+      }
+
+      async function fetchRealWorldCupApiData() {
+        const [gamesPayload, stadiumsPayload] = await Promise.all([
+          fetchJsonWithTimeout(CONFIG.LIVE_API.games, CONFIG.REQUEST_TIMEOUT_MS),
+          fetchJsonWithTimeout(CONFIG.LIVE_API.stadiums, CONFIG.REQUEST_TIMEOUT_MS)
+        ]);
+
+        return {
+          games: gamesPayload.games || [],
+          stadiums: stadiumsPayload.stadiums || [],
+          _sourceLabel: 'WorldCup26.ir Live API',
+          _sourceLabelKey: 'sourceWorldCup26Live',
+          _schema: 'worldcup26'
+        };
+      }
+
+      async function fetchJsonWithTimeout(url, timeoutMs) {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const response = await fetch(url, {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+          });
+          if (!response.ok) throw new Error(`Endpoint responded ${response.status}`);
+          const json = await response.json();
+          return {
+            ...json,
+            _sourceLabel: 'Live Schedule Feed',
+            _sourceLabelKey: 'sourceLiveFeed',
+            _endpoint: url
+          };
+        } finally {
+          window.clearTimeout(timeout);
+        }
+      }
+
+      async function fetchMockWorldCupData({ reason = 'cached-real-snapshot' } = {}) {
+        await wait(CONFIG.MOCK_LATENCY_MS);
+        // This is not fantasy/mock data: it is a cached snapshot from the WorldCup26.ir public API.
+        // It keeps the app showing real fixtures/results even in restricted previews without network access.
+        return JSON.parse(JSON.stringify(CACHED_WORLDCUP26_DATA));
+      }
+
+      function buildMockWorldCupFeed() {
+        const stadiums = [
+          { id: 'metlife', name: 'MetLife Stadium', city: 'East Rutherford', country: 'USA', capacity: 82500, pitchType: 'Hybrid grass', roof: 'Open air', shape: 'oval', opened: '2010', surfaceHeat: 88 },
+          { id: 'azteca', name: 'Estadio Azteca', city: 'Mexico City', country: 'Mexico', capacity: 87000, pitchType: 'Natural grass', roof: 'Partial canopy', shape: 'bowl', opened: '1966', surfaceHeat: 94 },
+          { id: 'sofi', name: 'SoFi Stadium', city: 'Los Angeles', country: 'USA', capacity: 70240, pitchType: 'Hybrid grass over modular tray', roof: 'Translucent canopy', shape: 'wave', opened: '2020', surfaceHeat: 79 },
+          { id: 'bc-place', name: 'BC Place', city: 'Vancouver', country: 'Canada', capacity: 54500, pitchType: 'Artificial turf overlay', roof: 'Retractable', shape: 'dome', opened: '1983', surfaceHeat: 72 },
+          { id: 'att', name: 'AT&T Stadium', city: 'Arlington', country: 'USA', capacity: 80000, pitchType: 'Natural grass tray', roof: 'Retractable', shape: 'dome', opened: '2009', surfaceHeat: 91 },
+          { id: 'hard-rock', name: 'Hard Rock Stadium', city: 'Miami Gardens', country: 'USA', capacity: 65326, pitchType: 'Natural grass', roof: 'Open air canopy', shape: 'rectangle', opened: '1987', surfaceHeat: 83 },
+          { id: 'lumen', name: 'Lumen Field', city: 'Seattle', country: 'USA', capacity: 68740, pitchType: 'Hybrid grass', roof: 'Open air', shape: 'rectangle', opened: '2002', surfaceHeat: 76 },
+          { id: 'bmo', name: 'BMO Field', city: 'Toronto', country: 'Canada', capacity: 45000, pitchType: 'Natural grass', roof: 'Open air', shape: 'compact', opened: '2007', surfaceHeat: 68 }
+        ];
+
+        const rawMatches = [
+          fixture('M-101', -180, 'Group Stage', 'Group A', 'Mexico', 'MEX', 'Canada', 'CAN', 'azteca', 83600),
+          fixture('M-102', -42, 'Group Stage', 'Group B', 'Brazil', 'BRA', 'Germany', 'GER', 'metlife', 80400),
+          fixture('M-103', 70, 'Group Stage', 'Group C', 'Argentina', 'ARG', 'Japan', 'JPN', 'sofi', 68200),
+          fixture('M-104', 220, 'Group Stage', 'Group D', 'France', 'FRA', 'Ghana', 'GHA', 'bc-place', 51000),
+          fixture('M-105', 1_420, 'Group Stage', 'Group E', 'Spain', 'ESP', 'South Korea', 'KOR', 'att', 76500),
+          fixture('M-106', 1_570, 'Group Stage', 'Group F', 'England', 'ENG', 'Australia', 'AUS', 'hard-rock', 62800),
+          fixture('M-107', 2_960, 'Round of 16', 'Knockout', 'Portugal', 'POR', 'Morocco', 'MAR', 'lumen', 65900),
+          fixture('M-108', 3_100, 'Round of 16', 'Knockout', 'Netherlands', 'NED', 'Uruguay', 'URU', 'bmo', 43100),
+          fixture('M-109', 4_440, 'Quarter-finals', 'Knockout', 'Italy', 'ITA', 'Belgium', 'BEL', 'metlife', 81500),
+          fixture('M-110', 4_610, 'Quarter-finals', 'Knockout', 'Croatia', 'CRO', 'Senegal', 'SEN', 'azteca', 85800),
+          fixture('M-111', 7_200, 'Semi-finals', 'Knockout', 'United States', 'USA', 'Brazil', 'BRA', 'att', 79000),
+          fixture('M-112', 10_080, 'Final', 'Final', 'Winner SF1', 'SF1', 'Winner SF2', 'SF2', 'metlife', 82500)
+        ];
+
+        const matches = rawMatches.map((match, index) => enrichMockMatch(match, stadiums, index));
+        return { generatedAt: new Date().toISOString(), stadiums, matches };
+      }
+
+      function fixture(id, offsetMinutes, stage, group, homeName, homeCode, awayName, awayCode, stadiumId, expectedSpectators) {
+        const kickoffUtc = new Date(MOCK_SESSION_STARTED_AT + offsetMinutes * 60_000).toISOString();
+        return {
+          id,
+          stage,
+          group,
+          kickoffUtc,
+          stadiumId,
+          expectedSpectators,
+          home: team(homeName, homeCode),
+          away: team(awayName, awayCode)
+        };
+      }
+
+      function team(name, code) {
+        return {
+          name,
+          code,
+          colors: TEAM_COLORS[code] || ['#23D9FF', '#9B5CFF']
+        };
+      }
+
+      function enrichMockMatch(match, stadiums, index) {
+        const stadium = stadiums.find(item => item.id === match.stadiumId);
+        const derived = deriveStatus(match.kickoffUtc);
+        const score = simulateScore(derived.elapsedMinutes, index);
+        const wave = Math.floor((Date.now() / 1_000 + index * 23) % 420);
+        const capacity = stadium?.capacity || match.expectedSpectators || 60000;
+        const expected = Math.min(capacity, match.expectedSpectators);
+        const attendance = derived.status === 'UPCOMING'
+          ? Math.max(0, expected - (index + 1) * 73 - wave)
+          : Math.min(capacity, expected - 180 + wave + (derived.status === 'LIVE' ? derived.elapsedMinutes * 6 : 0));
+
+        return {
+          ...match,
+          status: derived.status,
+          minute: derived.minute,
+          score: derived.status === 'UPCOMING' ? null : score,
+          attendance,
+          expectedSpectators: expected,
+          stadium
+        };
+      }
+
+      function deriveStatus(kickoffUtc) {
+        const elapsedMinutes = Math.floor((Date.now() - new Date(kickoffUtc).getTime()) / 60_000);
+        if (elapsedMinutes < 0) return { status: 'UPCOMING', minute: null, elapsedMinutes };
+        if (elapsedMinutes <= 45) return { status: 'LIVE', minute: `${elapsedMinutes}'`, elapsedMinutes };
+        if (elapsedMinutes <= 60) return { status: 'LIVE', minute: 'HT', elapsedMinutes };
+        if (elapsedMinutes <= 105) return { status: 'LIVE', minute: `${elapsedMinutes - 15}'`, elapsedMinutes };
+        return { status: 'FT', minute: 'FT', elapsedMinutes };
+      }
+
+      function simulateScore(elapsedMinutes, index) {
+        if (elapsedMinutes < 0) return null;
+        const home = Number(elapsedMinutes > 22 + (index % 4) * 7) + Number(elapsedMinutes > 82 && index % 2 === 0);
+        const away = Number(elapsedMinutes > 38 + (index % 5) * 6) + Number(elapsedMinutes > 88 && index % 3 === 0);
+        return { home, away };
+      }
+
+      function normalizeWorldCupPayload(payload) {
+        // WorldCup26.ir public API schema: { games: [...], stadiums: [...] }.
+        if (Array.isArray(payload.games) && Array.isArray(payload.stadiums)) {
+          return normalizeWorldCup26Payload(payload);
+        }
+
+        // Native app schema.
+        if (Array.isArray(payload.matches) && Array.isArray(payload.stadiums)) {
+          const stadiums = payload.stadiums.map(normalizeStadium);
+          const stadiumById = new Map(stadiums.map(stadium => [stadium.id, stadium]));
+          const matches = payload.matches.map((match, index) => normalizeMatch(match, stadiumById, index));
+          return {
+            stadiums,
+            matches,
+            sourceLabel: payload._sourceLabel || 'Live Schedule Feed',
+            sourceKey: payload._sourceLabelKey || 'sourceLiveFeed'
+          };
+        }
+
+        // Lightweight adapter for common fixture APIs that return { fixtures: [...] }.
+        if (Array.isArray(payload.fixtures)) {
+          const stadiumMap = new Map();
+          const matches = payload.fixtures.map((fixtureItem, index) => {
+            const venue = fixtureItem.venue || fixtureItem.stadium || {};
+            const stadiumId = slugify(venue.id || venue.name || `stadium-${index}`);
+            if (!stadiumMap.has(stadiumId)) {
+              stadiumMap.set(stadiumId, normalizeStadium({
+                id: stadiumId,
+                name: venue.name || 'TBA Stadium',
+                city: venue.city || 'TBA City',
+                country: venue.country || '',
+                capacity: venue.capacity || 60000,
+                pitchType: venue.pitchType || 'Natural grass'
+              }));
+            }
+            return normalizeMatch({
+              id: fixtureItem.id || `fixture-${index}`,
+              stage: fixtureItem.stage || fixtureItem.round || 'Tournament',
+              group: fixtureItem.group || 'All',
+              kickoffUtc: fixtureItem.kickoffUtc || fixtureItem.date || fixtureItem.utcDate,
+              stadiumId,
+              home: fixtureItem.home || fixtureItem.homeTeam,
+              away: fixtureItem.away || fixtureItem.awayTeam,
+              status: fixtureItem.status,
+              minute: fixtureItem.minute,
+              score: fixtureItem.score,
+              attendance: fixtureItem.attendance,
+              expectedSpectators: fixtureItem.expectedSpectators || fixtureItem.expectedAttendance
+            }, stadiumMap, index);
+          });
+          return {
+            stadiums: Array.from(stadiumMap.values()),
+            matches,
+            sourceLabel: payload._sourceLabel || 'Live sports API adapter',
+            sourceKey: payload._sourceLabelKey || 'sourceSportsApi'
+          };
+        }
+
+        throw new Error('Unsupported feed schema. Provide matches + stadiums arrays or fixtures array.');
+      }
+
+      function normalizeWorldCup26Payload(payload) {
+        const stadiums = payload.stadiums.map(normalizeWorldCup26Stadium);
+        const stadiumById = new Map(stadiums.map(stadium => [String(stadium.id), stadium]));
+        const matches = payload.games
+          .map((game, index) => normalizeWorldCup26Game(game, stadiumById, index))
+          .sort((a, b) => new Date(a.kickoffUtc) - new Date(b.kickoffUtc));
+
+        return {
+          stadiums,
+          matches,
+          sourceLabel: payload._sourceLabel || 'WorldCup26.ir Live API',
+          sourceKey: payload._sourceLabelKey || 'sourceWorldCup26Live'
+        };
+      }
+
+      function normalizeWorldCup26Stadium(raw) {
+        const id = String(raw.id || raw.stadium_id || slugify(raw.fifa_name || raw.name_en));
+        return {
+          id,
+          name: raw.fifa_name || raw.name_en || 'TBA Stadium',
+          city: raw.city_en || 'TBA City',
+          country: raw.country_en || '',
+          capacity: Number(raw.capacity || 0),
+          pitchType: 'Natural grass',
+          roof: worldCup26RoofType(id),
+          shape: ['4', '7', '13', '16'].includes(id) ? 'dome' : 'oval',
+          opened: '—',
+          surfaceHeat: raw.region === 'Western' ? 78 : raw.region === 'Eastern' ? 82 : 88
+        };
+      }
+
+      function normalizeWorldCup26Game(game, stadiumById, index) {
+        const stadiumId = String(game.stadium_id || game.stadiumId || '');
+        const stadium = stadiumById.get(stadiumId) || normalizeWorldCup26Stadium({ id: stadiumId || `wc26-${index}`, fifa_name: 'TBA Stadium', capacity: 60000 });
+        const kickoffUtc = parseWorldCup26Kickoff(game.local_date, stadiumId);
+        const status = worldCup26Status(game);
+        const homeName = game.home_team_name_en || game.home_team_label || 'TBD';
+        const awayName = game.away_team_name_en || game.away_team_label || 'TBD';
+        const expectedSpectators = Number(game.expectedSpectators || game.expectedAttendance || stadium.capacity || 0);
+        const attendance = Number(game.attendance || game.currentAttendance || 0) || expectedSpectators;
+
+        return {
+          id: `M-${String(game.id || index + 1).padStart(3, '0')}`,
+          stage: worldCup26Stage(game.type, game.group),
+          group: String(game.type || '').toLowerCase() === 'group' ? `Group ${game.group}` : 'Knockout',
+          kickoffUtc,
+          stadiumId,
+          stadium,
+          home: team(homeName, teamCodeFromName(homeName)),
+          away: team(awayName, teamCodeFromName(awayName)),
+          status: status.status,
+          minute: status.minute,
+          score: status.status === 'UPCOMING' ? null : {
+            home: Number(game.home_score || 0),
+            away: Number(game.away_score || 0)
+          },
+          attendance,
+          expectedSpectators
+        };
+      }
+
+      function worldCup26Stage(type, group) {
+        const key = String(type || '').toLowerCase();
+        const groupKey = String(group || '').toUpperCase();
+        if (key === 'group') return 'Group Stage';
+        if (key === 'r32' || groupKey === 'R32') return 'Round of 32';
+        if (key === 'r16' || groupKey === 'R16') return 'Round of 16';
+        if (key === 'qf' || groupKey === 'QF') return 'Quarter-finals';
+        if (key === 'sf' || groupKey === 'SF') return 'Semi-finals';
+        if (key === 'third' || groupKey === '3RD') return 'Third place';
+        if (key === 'final' || groupKey === 'F') return 'Final';
+        return 'Tournament';
+      }
+
+      function worldCup26Status(game) {
+        const elapsed = String(game.time_elapsed || '').toLowerCase();
+        if (String(game.finished || '').toUpperCase() === 'TRUE' || elapsed === 'finished') {
+          return { status: 'FT', minute: 'FT' };
+        }
+        if (!elapsed || elapsed === 'notstarted' || elapsed === 'not started') {
+          return { status: 'UPCOMING', minute: null };
+        }
+        return { status: 'LIVE', minute: elapsed.match(/^\d+$/) ? `${elapsed}'` : game.time_elapsed };
+      }
+
+      function worldCup26RoofType(stadiumId) {
+        const roofMap = {
+          '4': 'Retractable',
+          '7': 'Retractable',
+          '13': 'Retractable',
+          '16': 'Translucent canopy'
+        };
+        return roofMap[String(stadiumId)] || 'Open air';
+      }
+
+      function parseWorldCup26Kickoff(localDate, stadiumId) {
+        const fallback = new Date().toISOString();
+        const match = String(localDate || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
+        if (!match) return fallback;
+        const [, month, day, year, hour, minute] = match.map(Number);
+        const offset = worldCup26UtcOffset(stadiumId);
+        return new Date(Date.UTC(year, month - 1, day, hour - offset, minute)).toISOString();
+      }
+
+      function worldCup26UtcOffset(stadiumId) {
+        const offsets = {
+          '1': -6, '2': -6, '3': -6,
+          '4': -5, '5': -5, '6': -5,
+          '7': -4, '8': -4, '9': -4, '10': -4, '11': -4, '12': -4,
+          '13': -7, '14': -7, '15': -7, '16': -7
+        };
+        return offsets[String(stadiumId)] ?? 0;
+      }
+
+      function teamCodeFromName(name) {
+        const map = {
+          'United States': 'USA', 'South Korea': 'KOR', 'Czech Republic': 'CZE', 'Czechia': 'CZE',
+          'South Africa': 'RSA', 'Ivory Coast': 'CIV', 'Côte d\'Ivoire': 'CIV', 'Democratic Republic of the Congo': 'COD',
+          'Cape Verde': 'CPV', 'Saudi Arabia': 'KSA', 'New Zealand': 'NZL', 'Bosnia and Herzegovina': 'BIH',
+          'Iran': 'IRN', 'IR Iran': 'IRN', 'TBD': 'TBD'
+        };
+        if (map[name]) return map[name];
+        return String(name || 'TBD')
+          .replace(/[^A-Za-z\s]/g, '')
+          .split(/\s+/)
+          .filter(Boolean)
+          .map(part => part[0])
+          .join('')
+          .slice(0, 3)
+          .toUpperCase() || 'TBD';
+      }
+
+      function normalizeStadium(stadium) {
+        return {
+          id: stadium.id || slugify(stadium.name),
+          name: stadium.name || 'TBA Stadium',
+          city: stadium.city || 'TBA City',
+          country: stadium.country || '',
+          capacity: Number(stadium.capacity || 0),
+          pitchType: stadium.pitchType || stadium.pitch || 'Natural grass',
+          roof: stadium.roof || 'Open air',
+          shape: stadium.shape || 'oval',
+          opened: stadium.opened || '—',
+          surfaceHeat: Number(stadium.surfaceHeat || 75)
+        };
+      }
+
+      function normalizeMatch(match, stadiumById, index) {
+        const stadiumId = match.stadiumId || match.stadium?.id || slugify(match.stadium?.name || `stadium-${index}`);
+        const stadium = stadiumById.get ? stadiumById.get(stadiumId) : stadiumById.get(stadiumId);
+        const kickoffUtc = match.kickoffUtc || match.date || match.utcDate || new Date().toISOString();
+        const derived = deriveStatus(kickoffUtc);
+        const status = match.status || derived.status;
+        return {
+          id: match.id || `match-${index + 1}`,
+          stage: match.stage || 'Tournament',
+          group: match.group || 'All',
+          kickoffUtc,
+          stadiumId,
+          stadium: stadium || normalizeStadium(match.stadium || { id: stadiumId, name: 'TBA Stadium' }),
+          home: normalizeTeam(match.home, 'HOME'),
+          away: normalizeTeam(match.away, 'AWAY'),
+          status,
+          minute: match.minute ?? (status === 'LIVE' ? derived.minute : status),
+          score: normalizeScore(match.score, status),
+          attendance: Number(match.attendance || match.currentAttendance || 0),
+          expectedSpectators: Number(match.expectedSpectators || match.expectedAttendance || match.attendance || stadium?.capacity || 0)
+        };
+      }
+
+      function normalizeTeam(teamValue, fallbackCode) {
+        if (typeof teamValue === 'string') return team(teamValue, teamValue.slice(0, 3).toUpperCase());
+        const name = teamValue?.name || teamValue?.team || fallbackCode;
+        const code = teamValue?.code || teamValue?.tla || name.slice(0, 3).toUpperCase();
+        return {
+          name,
+          code,
+          colors: teamValue?.colors || TEAM_COLORS[code] || ['#23D9FF', '#9B5CFF']
+        };
+      }
+
+      function normalizeScore(score, status) {
+        if (status === 'UPCOMING') return null;
+        if (!score) return { home: 0, away: 0 };
+        if (typeof score.home === 'number' && typeof score.away === 'number') return score;
+        if (score.fullTime) return { home: Number(score.fullTime.home ?? 0), away: Number(score.fullTime.away ?? 0) };
+        return { home: Number(score.homeTeam ?? 0), away: Number(score.awayTeam ?? 0) };
+      }
+
+      function renderAll() {
+        renderTimezonePills();
+        renderSchedule();
+        renderStadiums();
+        renderStats(getFilteredMatches());
+        renderSyncState();
+      }
+
+      function renderSchedule() {
+        const matches = getFilteredMatches();
+        renderStats(matches);
+        dom.matchCountPill.textContent = localizedCount(matches.length, 'match');
+        dom.timezoneAbbrevPill.textContent = timezoneAbbreviation(state.timezone);
+
+        if (!matches.length) {
+          dom.matchGroups.innerHTML = `
+            <div class="empty-state">
+              <strong>${escapeHtml(t('noFixturesTitle'))}</strong>
+              ${escapeHtml(t('noFixturesDesc'))}
+            </div>`;
+          return;
+        }
+
+        const grouped = groupMatches(matches);
+        dom.matchGroups.innerHTML = grouped.map(group => `
+          <article class="match-day">
+            <header class="match-day-header">
+              <div>
+                <h3>${escapeHtml(group.dateLabel)}</h3>
+                <span>${escapeHtml(displayStage(group.stage))}</span>
+              </div>
+              <span>${escapeHtml(localizedCount(group.matches.length, 'fixture'))}</span>
+            </header>
+            <div class="matches-grid">
+              ${group.matches.map(renderMatchCard).join('')}
+            </div>
+          </article>
+        `).join('');
+      }
+
+      function renderMatchCard(match) {
+        const statusClass = statusToClass(match.status);
+        const score = match.score ? `${match.score.home} - ${match.score.away}` : 'vs';
+        const statusText = statusLabel(match);
+        const kickoffDate = formatDate(match.kickoffUtc, state.timezone, { weekday: 'short', month: 'short', day: 'numeric' });
+        const kickoffTime = formatDate(match.kickoffUtc, state.timezone, { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+        const attendanceText = match.status === 'UPCOMING'
+          ? t('expected', { count: formatNumber(match.expectedSpectators) })
+          : t('attending', { count: formatNumber(match.attendance) });
+
+        return `
+          <article class="match-card ${statusClass}" data-match-id="${escapeAttr(match.id)}">
+            <div class="card-top">
+              <span class="stage-chip">${escapeHtml(displayStage(match.stage))} • ${escapeHtml(displayGroup(match.group))}</span>
+              <span class="status-pill ${statusClass}">${escapeHtml(statusText)}</span>
+            </div>
+
+            <div class="scoreline">
+              ${renderTeam(match.home)}
+              <div class="score-box">
+                <strong>${escapeHtml(score)}</strong>
+                <small>${escapeHtml(match.id)}</small>
+              </div>
+              ${renderTeam(match.away)}
+            </div>
+
+            <div class="match-meta-grid">
+              <div class="meta-tile">
+                <small>${escapeHtml(t('date'))}</small>
+                <strong>${escapeHtml(kickoffDate)}</strong>
+              </div>
+              <div class="meta-tile">
+                <small>${escapeHtml(t('localTime'))}</small>
+                <strong>${escapeHtml(kickoffTime)}</strong>
+              </div>
+              <div class="meta-tile">
+                <small>${escapeHtml(t('crowd'))}</small>
+                <strong>${escapeHtml(attendanceText)}</strong>
+              </div>
+            </div>
+
+            <div class="card-bottom">
+              <button class="stadium-link" type="button" data-open-stadium data-stadium-id="${escapeAttr(match.stadiumId)}" data-match-id="${escapeAttr(match.id)}" aria-label="${escapeAttr(t('viewStadiumDetails'))}: ${escapeAttr(match.stadium.name)}">
+                ${stadiumIcon()} ${escapeHtml(match.stadium.name)}
+              </button>
+              <button class="mini-button" type="button" data-open-stadium data-stadium-id="${escapeAttr(match.stadiumId)}" data-match-id="${escapeAttr(match.id)}">${escapeHtml(t('viewStadiumDetails'))}</button>
+            </div>
+          </article>
+        `;
+      }
+
+      function renderTeam(teamData) {
+        const colors = teamData.colors || ['#23D9FF', '#9B5CFF'];
+        const gradient = `linear-gradient(135deg, ${colors[0]}, ${colors[1] || '#111827'})`;
+        return `
+          <div class="team">
+            <span class="flag-placeholder" style="background:${escapeAttr(gradient)}"><span>${escapeHtml(teamData.code)}</span></span>
+            <span class="team-name" title="${escapeAttr(teamData.name)}">${escapeHtml(teamData.name)}</span>
+            <span class="team-code">${escapeHtml(teamData.code)}</span>
+          </div>
+        `;
+      }
+
+      function renderStadiums() {
+        if (!state.stadiums.length) {
+          dom.stadiumGrid.innerHTML = `<div class="empty-state"><strong>${escapeHtml(t('noStadiumDataTitle'))}</strong>${escapeHtml(t('noStadiumDataDesc'))}</div>`;
+          return;
+        }
+
+        dom.stadiumGrid.innerHTML = state.stadiums.map(stadium => {
+          const stadiumMatches = state.matches.filter(match => match.stadiumId === stadium.id);
+          const liveMatch = stadiumMatches.find(match => match.status === 'LIVE');
+          const nextMatch = stadiumMatches.find(match => match.status !== 'FT') || stadiumMatches[0];
+          const crowd = liveMatch || nextMatch;
+          const utilization = crowd ? Math.min(100, Math.round(((crowd.attendance || crowd.expectedSpectators || 0) / stadium.capacity) * 100)) : 0;
+
+          return `
+            <article class="stadium-card">
+              <div class="stadium-card-top">
+                <div>
+                  <h3>${escapeHtml(stadium.name)}</h3>
+                  <p>${escapeHtml(stadium.city)}${stadium.country ? `, ${escapeHtml(stadium.country)}` : ''}</p>
+                </div>
+                <span class="capacity-badge">${formatCompact(stadium.capacity)}</span>
+              </div>
+              <div class="layout-card" aria-hidden="true">${stadiumLayoutSvg(stadium, utilization)}</div>
+              <div class="stadium-meta">
+                <div class="meta-tile"><small>${escapeHtml(t('capacity'))}</small><strong>${formatNumber(stadium.capacity)}</strong></div>
+                <div class="meta-tile"><small>${escapeHtml(t('pitch'))}</small><strong>${escapeHtml(valueLabel(stadium.pitchType))}</strong></div>
+                <div class="meta-tile"><small>${escapeHtml(t('roof'))}</small><strong>${escapeHtml(valueLabel(stadium.roof))}</strong></div>
+                <div class="meta-tile"><small>${escapeHtml(t('matchPlural'))}</small><strong>${formatNumber(stadiumMatches.length)}</strong></div>
+              </div>
+              <button class="button primary" type="button" data-open-stadium data-stadium-id="${escapeAttr(stadium.id)}">${escapeHtml(t('openArenaGuide'))}</button>
+            </article>
+          `;
+        }).join('');
+      }
+
+      function renderStats(filteredMatches) {
+        const matches = filteredMatches || getFilteredMatches();
+        const liveCount = state.matches.filter(match => match.status === 'LIVE').length;
+        const totalCapacity = state.stadiums.reduce((sum, stadium) => sum + (stadium.capacity || 0), 0);
+        const attendanceSamples = state.matches.filter(match => match.attendance || match.expectedSpectators);
+        const avgAttendance = attendanceSamples.length
+          ? Math.round(attendanceSamples.reduce((sum, match) => sum + (match.attendance || match.expectedSpectators || 0), 0) / attendanceSamples.length)
+          : 0;
+
+        dom.statMatches.textContent = formatNumber(matches.length);
+        dom.statMatchesSub.textContent = t('totalFixturesInFeed', { count: formatNumber(state.matches.length) });
+        dom.statLive.textContent = formatNumber(liveCount);
+        dom.statStadiums.textContent = formatNumber(state.stadiums.length);
+        dom.statCapacitySub.textContent = t('totalSeats', { count: formatNumber(totalCapacity) });
+        dom.statAttendance.textContent = formatCompact(avgAttendance);
+      }
+
+      function renderSyncState() {
+        dom.dataSourceText.textContent = state.dataSourceKey ? t(state.dataSourceKey) : state.dataSource;
+        dom.syncStatusText.textContent = state.isLoading ? t('syncing') : t('online');
+        dom.lastUpdatedText.textContent = state.lastUpdated
+          ? formatDate(state.lastUpdated.toISOString(), state.timezone, { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' })
+          : t('never');
+        renderRefreshCountdown();
+      }
+
+      function renderLoadingState() {
+        dom.refreshSpinner.hidden = !state.isLoading;
+        dom.manualRefresh.disabled = state.isLoading;
+        dom.manualRefreshHero.disabled = state.isLoading;
+        dom.syncStatusText.textContent = state.isLoading ? t('syncing') : t('online');
+      }
+
+      function renderRefreshCountdown() {
+        if (!state.nextRefreshAt) {
+          dom.nextRefreshText.textContent = `${formatNumber(60)}s`;
+          return;
+        }
+        const seconds = Math.max(0, Math.ceil((state.nextRefreshAt - Date.now()) / 1_000));
+        dom.nextRefreshText.textContent = `${formatNumber(seconds)}s`;
+      }
+
+      function renderLiveRelativeTimes() {
+        // Re-render status labels and localized times when the minute changes while keeping the live feed polling interval lean.
+        const hasLive = state.matches.some(match => match.status === 'LIVE');
+        if (hasLive && new Date().getSeconds() === 0) renderSchedule();
+      }
+
+      function populateFilters() {
+        populateSelect(dom.groupFilter, t('allGroups'), uniqueSorted(state.matches.map(match => match.group)), state.filters.group, displayGroup);
+        populateSelect(dom.stageFilter, t('allStages'), uniqueSorted(state.matches.map(match => match.stage)), state.filters.stage, displayStage);
+        populateSelect(dom.stadiumFilter, t('allStadiums'), uniqueSorted(state.stadiums.map(stadium => stadium.name)), state.filters.stadium);
+      }
+
+      function populateSelect(select, allLabel, values, selectedValue, displayValue = value => value) {
+        const options = [`<option value="all">${escapeHtml(allLabel)}</option>`]
+          .concat(values.map(value => `<option value="${escapeAttr(value)}">${escapeHtml(displayValue(value))}</option>`));
+        select.innerHTML = options.join('');
+        select.value = values.includes(selectedValue) ? selectedValue : 'all';
+      }
+
+      function getFilteredMatches() {
+        const query = state.filters.search;
+        return [...state.matches]
+          .sort((a, b) => new Date(a.kickoffUtc) - new Date(b.kickoffUtc))
+          .filter(match => {
+            const stadiumName = match.stadium?.name || '';
+            const haystack = `${match.id} ${match.home.name} ${match.away.name} ${match.home.code} ${match.away.code} ${match.group} ${match.stage} ${stadiumName}`.toLowerCase();
+            const matchesSearch = !query || haystack.includes(query);
+            const matchesGroup = state.filters.group === 'all' || match.group === state.filters.group;
+            const matchesStage = state.filters.stage === 'all' || match.stage === state.filters.stage;
+            const matchesStadium = state.filters.stadium === 'all' || stadiumName === state.filters.stadium;
+            return matchesSearch && matchesGroup && matchesStage && matchesStadium;
+          });
+      }
+
+      function groupMatches(matches) {
+        const groups = new Map();
+        matches.forEach(match => {
+          const dateKey = formatDate(match.kickoffUtc, state.timezone, { year: 'numeric', month: '2-digit', day: '2-digit' });
+          const dateLabel = formatDate(match.kickoffUtc, state.timezone, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+          const key = `${dateKey}__${match.stage}`;
+          if (!groups.has(key)) groups.set(key, { key, dateKey, dateLabel, stage: match.stage, matches: [] });
+          groups.get(key).matches.push(match);
+        });
+        return Array.from(groups.values()).sort((a, b) => {
+          const firstA = new Date(a.matches[0].kickoffUtc).getTime();
+          const firstB = new Date(b.matches[0].kickoffUtc).getTime();
+          return firstA - firstB;
+        });
+      }
+
+      function openStadiumModal(stadiumId, matchId = null) {
+        const stadium = state.stadiums.find(item => item.id === stadiumId);
+        if (!stadium) return;
+
+        const match = matchId ? state.matches.find(item => item.id === matchId) : null;
+        const stadiumMatches = state.matches
+          .filter(item => item.stadiumId === stadium.id)
+          .sort((a, b) => new Date(a.kickoffUtc) - new Date(b.kickoffUtc));
+        const selectedMatch = match || stadiumMatches.find(item => item.status === 'LIVE') || stadiumMatches.find(item => item.status !== 'FT') || stadiumMatches[0];
+        const crowdValue = selectedMatch?.attendance || selectedMatch?.expectedSpectators || 0;
+        const utilization = stadium.capacity ? Math.min(100, Math.round((crowdValue / stadium.capacity) * 100)) : 0;
+
+        dom.modalName.textContent = stadium.name;
+        dom.modalCity.textContent = `${stadium.city}${stadium.country ? `, ${stadium.country}` : ''}`;
+        dom.modalBody.innerHTML = `
+          <div class="modal-panel">
+            <div class="layout-card" style="height: 320px">${stadiumLayoutSvg(stadium, utilization, true)}</div>
+            <p style="color: var(--text-muted); line-height: 1.7; margin: 14px 0 0;">
+              ${escapeHtml(t('venueDescription', { stadium: stadium.name }))}
+            </p>
+          </div>
+          <div class="modal-panel">
+            <h4>${escapeHtml(t('venueIntelligence'))}</h4>
+            <ul class="fact-list">
+              <li><span>${escapeHtml(t('stadiumWord'))}</span><strong>${escapeHtml(stadium.name)}</strong></li>
+              <li><span>${escapeHtml(t('city'))}</span><strong>${escapeHtml(stadium.city)}${stadium.country ? `, ${escapeHtml(stadium.country)}` : ''}</strong></li>
+              <li><span>${escapeHtml(t('totalSeatingCapacity'))}</span><strong>${formatNumber(stadium.capacity)}</strong></li>
+              <li><span>${escapeHtml(t('currentExpectedCrowd'))}</span><strong>${formatNumber(crowdValue)} (${formatNumber(utilization)}%)</strong></li>
+              <li><span>${escapeHtml(t('pitchFieldType'))}</span><strong>${escapeHtml(stadium.pitchType)}</strong></li>
+              <li><span>${escapeHtml(t('roof'))}</span><strong>${escapeHtml(stadium.roof)}</strong></li>
+              <li><span>${escapeHtml(t('opened'))}</span><strong>${escapeHtml(stadium.opened)}</strong></li>
+            </ul>
+            ${selectedMatch ? `
+              <div style="height: 14px"></div>
+              <h4>${escapeHtml(t('selectedMatchCrowdFeed'))}</h4>
+              <div class="upcoming-item">
+                <strong>${escapeHtml(selectedMatch.home.name)} vs ${escapeHtml(selectedMatch.away.name)}</strong>
+                <span>${escapeHtml(statusLabel(selectedMatch))}<br>${escapeHtml(formatDate(selectedMatch.kickoffUtc, state.timezone, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }))}</span>
+              </div>
+            ` : ''}
+            <div style="height: 14px"></div>
+            <h4>${escapeHtml(t('fixturesAtVenue'))}</h4>
+            <div class="upcoming-list">
+              ${stadiumMatches.map(item => `
+                <div class="upcoming-item">
+                  <strong>${escapeHtml(item.home.code)} vs ${escapeHtml(item.away.code)}</strong>
+                  <span>${escapeHtml(item.stage)}<br>${escapeHtml(formatDate(item.kickoffUtc, state.timezone, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}</span>
+                </div>
+              `).join('') || `<p style="color: var(--text-muted);">${escapeHtml(t('noFixturesAssigned'))}</p>`}
+            </div>
+          </div>
+        `;
+
+        dom.modalBackdrop.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        dom.closeModal.focus();
+      }
+
+      function closeModal() {
+        dom.modalBackdrop.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+
+      function setActiveTab(tab) {
+        if (!tab || !['schedule', 'stadiums'].includes(tab)) return;
+        state.activeTab = tab;
+        dom.scheduleSection.hidden = tab !== 'schedule';
+        dom.stadiumsSection.hidden = tab !== 'stadiums';
+        dom.scheduleControls.hidden = tab !== 'schedule';
+
+        dom.navTabs.forEach(button => {
+          const isActive = button.dataset.tab === tab;
+          button.classList.toggle('active', isActive);
+          if (button.getAttribute('role') === 'tab') {
+            button.setAttribute('aria-selected', String(isActive));
+          }
+        });
+
+        if (tab === 'stadiums') renderStadiums();
+        window.requestAnimationFrame(() => {
+          const target = tab === 'schedule' ? dom.scheduleSection : dom.stadiumsSection;
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+
+      function applyLanguage(language, { persist = true, rerender = true } = {}) {
+        state.language = LANGUAGE_META[language] ? language : 'en';
+        const meta = LANGUAGE_META[state.language];
+        document.documentElement.lang = meta.htmlLang;
+        document.documentElement.dir = meta.dir;
+        document.title = t('pageTitle');
+        if (dom.languageSelect) dom.languageSelect.value = state.language;
+        if (persist) safeStorageSet(CONFIG.STORAGE_KEYS.language, state.language);
+        applyTranslations();
+        applyTheme(state.theme);
+        if (rerender) {
+          buildTimezoneSelect();
+          populateFilters();
+          renderAll();
+        }
+      }
+
+      function applyTranslations() {
+        document.querySelectorAll('[data-i18n]').forEach(element => {
+          element.textContent = t(element.dataset.i18n);
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+          element.setAttribute('placeholder', t(element.dataset.i18nPlaceholder));
+        });
+        document.querySelectorAll('[data-i18n-aria-label]').forEach(element => {
+          element.setAttribute('aria-label', t(element.dataset.i18nAriaLabel));
+        });
+      }
+
+      function applyTheme(theme) {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        dom.themeToggle.textContent = theme === 'dark' ? '☾' : '☀';
+        dom.themeToggle.title = theme === 'dark' ? t('themeSwitchLight') : t('themeSwitchDark');
+      }
+
+      function buildTimezoneSelect() {
+        const detected = isValidTimezone(state.detectedTimezone) ? state.detectedTimezone : 'UTC';
+        if (!isValidTimezone(state.timezone)) state.timezone = CONFIG.DEFAULT_TIMEZONE;
+
+        const presets = [
+          { value: 'Asia/Dhaka', label: t('tzDhaka') },
+          { value: detected, label: `${t('tzLocal')} — ${detected}` },
+          { value: 'UTC', label: t('tzGmt') },
+          { value: 'America/New_York', label: t('tzEst') },
+          { value: 'America/Los_Angeles', label: t('tzPt') },
+          { value: 'Europe/London', label: t('tzBst') },
+          { value: 'Europe/Paris', label: t('tzCet') },
+          { value: 'Asia/Bangkok', label: t('tzIctBkkVte') },
+          { value: 'Asia/Vientiane', label: t('tzIctVte') },
+          { value: 'Asia/Tokyo', label: t('tzJst') },
+          { value: 'Asia/Dubai', label: t('tzGst') },
+          { value: 'Australia/Sydney', label: t('tzAet') }
+        ];
+
+        const fallbackTimezones = [
+          'UTC', 'Europe/London', 'Europe/Dublin', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome',
+          'Africa/Cairo', 'Africa/Johannesburg', 'Asia/Dubai', 'Asia/Qatar', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Bangkok',
+          'Asia/Vientiane', 'Asia/Singapore', 'Asia/Shanghai', 'Asia/Hong_Kong', 'Asia/Tokyo', 'Asia/Seoul',
+          'Australia/Perth', 'Australia/Sydney', 'Pacific/Auckland', 'America/New_York', 'America/Chicago',
+          'America/Denver', 'America/Los_Angeles', 'America/Toronto', 'America/Mexico_City', 'America/Sao_Paulo',
+          'America/Argentina/Buenos_Aires'
+        ];
+
+        const seen = new Set();
+        const suggested = presets.filter(item => {
+          if (!isValidTimezone(item.value) || seen.has(item.value)) return false;
+          seen.add(item.value);
+          return true;
+        });
+
+        if (isValidTimezone(state.timezone) && !seen.has(state.timezone)) {
+          suggested.unshift({ value: state.timezone, label: `Selected — ${state.timezone}` });
+          seen.add(state.timezone);
+        }
+
+        let allZones = [];
+        try {
+          if (typeof Intl.supportedValuesOf === 'function') {
+            allZones = Intl.supportedValuesOf('timeZone');
+          }
+        } catch (error) {
+          // Older WebViews can expose Intl.supportedValuesOf but throw for timeZone.
+          // In that case we still render a solid fallback list instead of an empty dropdown.
+          allZones = [];
+        }
+
+        if (!Array.isArray(allZones) || !allZones.length) {
+          allZones = fallbackTimezones;
+        }
+
+        const optionGroups = [];
+        optionGroups.push(`<optgroup label="${escapeAttr(t('suggestedTimezones'))}">${suggested.map(item => optionHtml(item.value, item.label)).join('')}</optgroup>`);
+
+        const globalOptions = uniqueSorted(allZones)
+          .filter(zone => isValidTimezone(zone) && !seen.has(zone))
+          .map(zone => optionHtml(zone, zone.replace(/_/g, ' ')))
+          .join('');
+
+        if (globalOptions) {
+          optionGroups.push(`<optgroup label="${escapeAttr(t('allGlobalTimezones'))}">${globalOptions}</optgroup>`);
+        }
+
+        dom.timezoneSelect.innerHTML = optionGroups.join('') || optionHtml('UTC', t('tzGmt'));
+
+        if (![...dom.timezoneSelect.options].some(option => option.value === state.timezone)) {
+          dom.timezoneSelect.insertAdjacentHTML('afterbegin', optionHtml(state.timezone, `${t('tzSelected')} — ${state.timezone}`));
+        }
+
+        dom.timezoneSelect.value = state.timezone;
+      }
+
+      function renderTimezonePills() {
+        dom.detectedTimezonePill.textContent = t('detectedTimezone', { timezone: state.detectedTimezone });
+        dom.selectedTimezonePill.textContent = t('viewingTimezone', { timezone: friendlyTimezoneLabel(state.timezone) });
+        dom.timezoneAbbrevPill.textContent = timezoneAbbreviation(state.timezone);
+        if (dom.timezoneSelect.value !== state.timezone) dom.timezoneSelect.value = state.timezone;
+      }
+
+      function stadiumLayoutSvg(stadium, utilization = 75, large = false) {
+        const heat = Math.max(0, Math.min(100, utilization));
+        const ringColor = heat > 92 ? 'var(--accent-2)' : heat > 75 ? 'var(--accent)' : 'var(--accent-3)';
+        const labelSize = large ? 17 : 14;
+        return `
+          <svg viewBox="0 0 520 260" role="img" aria-label="${escapeAttr(t('layoutAria', { stadium: stadium.name }))}">
+            <defs>
+              <linearGradient id="pitch-${escapeAttr(stadium.id)}" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stop-color="#0A7A3D" stop-opacity="0.96" />
+                <stop offset="1" stop-color="#7CFF6B" stop-opacity="0.62" />
+              </linearGradient>
+              <linearGradient id="seat-${escapeAttr(stadium.id)}" x1="0" x2="1">
+                <stop offset="0" stop-color="#23D9FF" stop-opacity="0.32" />
+                <stop offset="1" stop-color="#9B5CFF" stop-opacity="0.32" />
+              </linearGradient>
+            </defs>
+            <rect x="18" y="22" width="484" height="216" rx="78" fill="url(#seat-${escapeAttr(stadium.id)})" stroke="rgba(255,255,255,.22)" stroke-width="2" />
+            <rect x="58" y="52" width="404" height="156" rx="52" fill="rgba(0,0,0,.18)" stroke="rgba(255,255,255,.2)" stroke-width="2" />
+            <rect x="104" y="72" width="312" height="116" rx="12" fill="url(#pitch-${escapeAttr(stadium.id)})" stroke="rgba(255,255,255,.72)" stroke-width="2" />
+            <line x1="260" y1="72" x2="260" y2="188" stroke="rgba(255,255,255,.68)" stroke-width="2" />
+            <circle cx="260" cy="130" r="28" fill="none" stroke="rgba(255,255,255,.68)" stroke-width="2" />
+            <rect x="104" y="102" width="34" height="56" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="2" />
+            <rect x="382" y="102" width="34" height="56" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="2" />
+            <path d="M52 130 A208 104 0 0 1 468 130" fill="none" stroke="${ringColor}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${heat * 5.7} 570" opacity="0.92" />
+            <text x="260" y="232" text-anchor="middle" fill="currentColor" font-size="${labelSize}" font-weight="800">${escapeHtml(t('crowdLoad', { stadium: stadium.name, percent: formatNumber(heat) }))}</text>
+          </svg>
+        `;
+      }
+
+      function stadiumIcon() {
+        return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10c0-3.3 3.6-6 8-6s8 2.7 8 6v6c0 2.2-3.6 4-8 4s-8-1.8-8-4v-6Z" stroke="currentColor" stroke-width="1.8"/><path d="M4 10c0 2.2 3.6 4 8 4s8-1.8 8-4" stroke="currentColor" stroke-width="1.8"/><path d="M8 13v5M16 13v5" stroke="currentColor" stroke-width="1.8"/></svg>`;
+      }
+
+      function statusLabel(match) {
+        if (match.status === 'LIVE') return t('liveStatus', { minute: match.minute || '' }).trim();
+        if (match.status === 'FT') return t('fullTime');
+        return t('upcoming');
+      }
+
+      function statusToClass(status) {
+        if (status === 'LIVE') return 'live';
+        if (status === 'FT') return 'ft';
+        return 'upcoming';
+      }
+
+      function detectTimezone() {
+        try {
+          return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        } catch {
+          return 'UTC';
+        }
+      }
+
+      function detectLanguage() {
+        const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length
+          ? navigator.languages
+          : [navigator.language || 'en'];
+        const match = browserLanguages
+          .map(language => String(language).slice(0, 2).toLowerCase())
+          .find(language => LANGUAGE_META[language]);
+        return match || 'en';
+      }
+
+      function isValidTimezone(timezone) {
+        try {
+          new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      function timezoneAbbreviation(timezone) {
+        if (timezone === 'Asia/Dhaka') return '+06';
+        try {
+          const parts = new Intl.DateTimeFormat(currentLocale(), { timeZone: timezone, timeZoneName: 'short' }).formatToParts(new Date());
+          return parts.find(part => part.type === 'timeZoneName')?.value || timezone;
+        } catch {
+          return timezone;
+        }
+      }
+
+      function friendlyTimezoneLabel(timezone) {
+        if (timezone === 'Asia/Dhaka') return t('tzDhaka');
+        if (timezone === state.detectedTimezone) return `${t('tzLocal')} — ${timezone}`;
+        return `${timezone.replace(/_/g, ' ')} (${timezoneAbbreviation(timezone)})`;
+      }
+
+      function currentLocale() {
+        return LANGUAGE_META[state.language]?.locale || LANGUAGE_META.en.locale;
+      }
+
+      function t(key, params = {}) {
+        const dictionary = I18N[state.language] || I18N.en;
+        const template = dictionary[key] ?? I18N.en[key] ?? key;
+        return String(template).replace(/\{(\w+)\}/g, (_, param) => params[param] ?? '');
+      }
+
+      function valueLabel(value) {
+        return I18N[state.language]?.valueLabels?.[value] || I18N.en.valueLabels?.[value] || value;
+      }
+
+      function displayGroup(value) {
+        const groupMatch = String(value || '').match(/^Group\s+(.+)$/i);
+        if (groupMatch) return `${t('group')} ${groupMatch[1]}`;
+        return valueLabel(value);
+      }
+
+      function displayStage(value) {
+        return valueLabel(value);
+      }
+
+      function localizedCount(count, type) {
+        const numeric = formatNumber(count);
+        const unitKey = count === 1 ? `${type}Singular` : `${type}Plural`;
+        return t('matchCount', { count: numeric, unit: t(unitKey) });
+      }
+
+      function formatDate(value, timezone, options) {
+        const date = value instanceof Date ? value : new Date(value);
+        try {
+          return new Intl.DateTimeFormat(currentLocale(), { timeZone: timezone, ...options }).format(date);
+        } catch {
+          return new Intl.DateTimeFormat(currentLocale(), { timeZone: 'UTC', ...options }).format(date);
+        }
+      }
+
+      function formatNumber(value) {
+        return new Intl.NumberFormat(currentLocale()).format(Math.round(Number(value) || 0));
+      }
+
+      function formatCompact(value) {
+        return new Intl.NumberFormat(currentLocale(), { notation: 'compact', maximumFractionDigits: 1 }).format(Math.round(Number(value) || 0));
+      }
+
+      function uniqueSorted(values) {
+        return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
+      }
+
+      function slugify(value) {
+        return String(value || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '') || 'item';
+      }
+
+      function wait(ms) {
+        return new Promise(resolve => window.setTimeout(resolve, ms));
+      }
+
+      function optionHtml(value, label) {
+        return `<option value="${escapeAttr(value)}">${escapeHtml(label)}</option>`;
+      }
+
+      function showToast(message) {
+        showToastMessage(message);
+      }
+
+      function showToastMessage(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = `<strong>${type === 'error' ? escapeHtml(t('toastErrorTitle')) : escapeHtml(t('toastTitle'))}</strong><br><span style="color: var(--text-muted);">${escapeHtml(message)}</span>`;
+        dom.toastContainer.appendChild(toast);
+        window.setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(8px)';
+          window.setTimeout(() => toast.remove(), 220);
+        }, 3_600);
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function escapeAttr(value) {
+        return escapeHtml(value).replace(/`/g, '&#096;');
+      }
+    })();
+  </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
